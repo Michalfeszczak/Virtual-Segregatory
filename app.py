@@ -52,7 +52,7 @@ def get_file(file_id):
 
 @app.route('/api/batch-import', methods=['POST'])
 def batch_import():
-    """Batch import PDFów z folderu imports"""
+    """Batch import PDFów z pełnym auto-process pipeline"""
     try:
         imports_dir = Path(CONFIG['imports_dir'])
         pdf_files = list(imports_dir.glob('*.pdf'))
@@ -60,71 +60,297 @@ def batch_import():
         if not pdf_files:
             return jsonify({'error': 'Brak plików PDF w folderze imports'}), 400
 
-        reader = PDFReader()
-        extractor = KWExtractor()
         db = DatabaseManager(CONFIG['db_path'])
         db.connect()
 
-        total_files = 0
-        total_pages = 0
-        total_kw = 0
+        total = {
+            'files_imported': 0,
+            'pages_processed': 0,
+            'kw_found': 0,
+            'persons_found': 0,
+            'companies_found': 0,
+            'institutions_found': 0,
+            'nips_found': 0,
+            'regons_found': 0,
+            'krs_found': 0,
+            'pesels_found': 0,
+            'phones_found': 0,
+            'emails_found': 0,
+            'signatures_found': 0,
+            'tags_added': 0,
+            'cooccurrences_built': 0
+        }
 
         for pdf_path in pdf_files:
-            pdf_data = reader.read_pdf(str(pdf_path))
-            if not pdf_data:
-                continue
-
-            binder_id = db.add_binder(pdf_path.stem)
-            file_id = db.add_source_file(
-                binder_id,
-                pdf_data['filename'],
-                pdf_data['filepath'],
-                pdf_data['file_hash'],
-                pdf_data['page_count']
-            )
-
-            for page_data in pdf_data['pages']:
-                page_num = page_data['page_number']
-                text = page_data['text']
-
-                page_id = db.add_page(file_id, page_num, text)
-                total_pages += 1
-
-                kws = extractor.extract_from_text(text, page_num)
-                for kw in kws:
-                    kw_full = kw['kw_full']
-                    kw_id = db.add_land_register(
-                        kw_full,
-                        kw['kw_district'],
-                        kw['kw_number'],
-                        kw['kw_checksum']
-                    )
-                    db.add_land_register_occurrence(
-                        kw_id,
-                        page_id,
-                        file_id,
-                        kw['context_before'],
-                        kw['context_after']
-                    )
-                    total_kw += 1
-
-            total_files += 1
+            result = auto_process_pdf(pdf_path, pdf_path.stem, db=db)
+            if result and result.get('success'):
+                total['files_imported'] += 1
+                for key, value in result['stats'].items():
+                    if key in total:
+                        total[key] += value
 
         db.disconnect()
 
         return jsonify({
             'success': True,
-            'files_imported': total_files,
-            'pages_processed': total_pages,
-            'kw_found': total_kw
+            **total
         })
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+def auto_process_pdf(filepath, binder_name='Default', db=None):
+    """
+    Pełny auto-process pipeline dla PDF:
+    1. OCR / odczyt tekstu
+    2. Dodanie do bazy
+    3. Ekstrakcja KW
+    4. Ekstrakcja encji (osoby, firmy, NIP, REGON, KRS, PESEL, tel, email)
+    5. Auto-tagowanie dokumentu
+    6. Budowa cooccurrences dla tego pliku
+    """
+    reader = PDFReader()
+    kw_extractor = KWExtractor()
+    entity_extractor = EntityExtractor()
+    tagger = DocumentTagger()
+
+    own_db = False
+    if db is None:
+        db = DatabaseManager(CONFIG['db_path'])
+        db.connect()
+        own_db = True
+
+    stats = {
+        'pages_processed': 0,
+        'kw_found': 0,
+        'persons_found': 0,
+        'companies_found': 0,
+        'institutions_found': 0,
+        'nips_found': 0,
+        'regons_found': 0,
+        'krs_found': 0,
+        'pesels_found': 0,
+        'phones_found': 0,
+        'emails_found': 0,
+        'signatures_found': 0,
+        'tags_added': 0,
+        'cooccurrences_built': 0
+    }
+
+    # Krok 1: Odczyt PDF z OCR
+    pdf_data = reader.read_pdf(str(filepath))
+    if not pdf_data:
+        if own_db:
+            db.disconnect()
+        return None
+
+    # Krok 2: Dodanie do bazy
+    binder_id = db.add_binder(binder_name)
+    file_id = db.add_source_file(
+        binder_id,
+        pdf_data['filename'],
+        pdf_data['filepath'],
+        pdf_data['file_hash'],
+        pdf_data['page_count']
+    )
+
+    page_ids = []
+    page_texts = []
+
+    # Krok 3-4: Przetwarzanie stron - KW + Encje
+    for page_data in pdf_data['pages']:
+        page_num = page_data['page_number']
+        text = page_data['text']
+
+        page_id = db.add_page(file_id, page_num, text)
+        page_ids.append(page_id)
+        page_texts.append(text)
+        stats['pages_processed'] += 1
+
+        if not text or len(text) < 10:
+            continue
+
+        # KW extraction
+        kws = kw_extractor.extract_from_text(text, page_num)
+        for kw in kws:
+            kw_id = db.add_land_register(
+                kw['kw_full'],
+                kw['kw_district'],
+                kw['kw_number'],
+                kw['kw_checksum']
+            )
+            db.add_land_register_occurrence(
+                kw_id, page_id, file_id,
+                kw['context_before'], kw['context_after']
+            )
+            stats['kw_found'] += 1
+
+        # Entity extraction
+        entities = entity_extractor.extract_all(text)
+
+        # Persons
+        for person in entities.get('persons', []):
+            db.execute("""
+                INSERT OR IGNORE INTO entities (entity_type, entity_value, normalized_value)
+                VALUES (?, ?, ?)
+            """, ('person', person['full_name'], person['full_name'].upper()))
+            entity_row = db.fetch_one(
+                "SELECT id FROM entities WHERE entity_type='person' AND entity_value=?",
+                (person['full_name'],)
+            )
+            if entity_row:
+                db.execute("""
+                    INSERT INTO entity_occurrences (entity_id, page_id, file_id)
+                    VALUES (?, ?, ?)
+                """, (entity_row['id'], page_id, file_id))
+                stats['persons_found'] += 1
+
+        # Companies
+        for company in entities.get('companies', []):
+            db.execute("""
+                INSERT OR IGNORE INTO entities (entity_type, entity_value, normalized_value)
+                VALUES (?, ?, ?)
+            """, ('company', company['name'], company['name'].upper()))
+            entity_row = db.fetch_one(
+                "SELECT id FROM entities WHERE entity_type='company' AND entity_value=?",
+                (company['name'],)
+            )
+            if entity_row:
+                db.execute("""
+                    INSERT INTO entity_occurrences (entity_id, page_id, file_id)
+                    VALUES (?, ?, ?)
+                """, (entity_row['id'], page_id, file_id))
+                stats['companies_found'] += 1
+
+        # Institutions
+        for inst in entities.get('institutions', []):
+            db.execute("""
+                INSERT OR IGNORE INTO entities (entity_type, entity_value, normalized_value)
+                VALUES (?, ?, ?)
+            """, ('institution', inst['name'], inst['name'].upper()))
+            entity_row = db.fetch_one(
+                "SELECT id FROM entities WHERE entity_type='institution' AND entity_value=?",
+                (inst['name'],)
+            )
+            if entity_row:
+                db.execute("""
+                    INSERT INTO entity_occurrences (entity_id, page_id, file_id)
+                    VALUES (?, ?, ?)
+                """, (entity_row['id'], page_id, file_id))
+                stats['institutions_found'] += 1
+
+        # NIPs
+        for nip in entities.get('nips', []):
+            db.execute("""
+                INSERT OR IGNORE INTO entities (entity_type, entity_value, normalized_value)
+                VALUES (?, ?, ?)
+            """, ('nip', nip['formatted'], nip['nip']))
+            entity_row = db.fetch_one(
+                "SELECT id FROM entities WHERE entity_type='nip' AND entity_value=?",
+                (nip['formatted'],)
+            )
+            if entity_row:
+                db.execute("""
+                    INSERT INTO entity_occurrences (entity_id, page_id, file_id)
+                    VALUES (?, ?, ?)
+                """, (entity_row['id'], page_id, file_id))
+                stats['nips_found'] += 1
+
+        # REGONs, KRSs, PESELs, Phones, Emails, Signatures
+        for ent_type, ent_list, key in [
+            ('regon', entities.get('regons', []), 'regon'),
+            ('krs', entities.get('krs', []), 'krs'),
+            ('pesel', entities.get('pesels', []), 'pesel'),
+            ('phone', entities.get('phones', []), 'phone'),
+            ('email', entities.get('emails', []), 'email'),
+        ]:
+            for item in ent_list:
+                value = item.get(key, '')
+                if not value:
+                    continue
+                db.execute("""
+                    INSERT OR IGNORE INTO entities (entity_type, entity_value, normalized_value)
+                    VALUES (?, ?, ?)
+                """, (ent_type, value, value))
+                entity_row = db.fetch_one(
+                    f"SELECT id FROM entities WHERE entity_type='{ent_type}' AND entity_value=?",
+                    (value,)
+                )
+                if entity_row:
+                    db.execute("""
+                        INSERT INTO entity_occurrences (entity_id, page_id, file_id)
+                        VALUES (?, ?, ?)
+                    """, (entity_row['id'], page_id, file_id))
+                    stats[f'{ent_type}s_found'] += 1
+
+        # Signatures
+        for sig in entities.get('signatures', []):
+            value = sig.get('value', '')
+            if not value:
+                continue
+            db.execute("""
+                INSERT OR IGNORE INTO entities (entity_type, entity_value, normalized_value)
+                VALUES (?, ?, ?)
+            """, ('signature', value, value.upper()))
+            entity_row = db.fetch_one(
+                "SELECT id FROM entities WHERE entity_type='signature' AND entity_value=?",
+                (value,)
+            )
+            if entity_row:
+                db.execute("""
+                    INSERT INTO entity_occurrences (entity_id, page_id, file_id)
+                    VALUES (?, ?, ?)
+                """, (entity_row['id'], page_id, file_id))
+                stats['signatures_found'] += 1
+
+    # Krok 5: Auto-tagowanie dokumentu
+    valid_texts = [t for t in page_texts if t and len(t) > 10]
+    if valid_texts:
+        tags = tagger.tag_pages_combined(valid_texts)
+        db.execute("DELETE FROM document_tags WHERE file_id = ?", (file_id,))
+        for tag in tags[:3]:
+            db.execute("""
+                INSERT OR IGNORE INTO document_tags (file_id, tag, confidence)
+                VALUES (?, ?, ?)
+            """, (file_id, tag['type'], tag['confidence']))
+            stats['tags_added'] += 1
+
+    # Krok 6: Build cooccurrences dla stron tego pliku
+    for page_id in page_ids:
+        entity_ids_row = db.fetch_one("""
+            SELECT GROUP_CONCAT(entity_id) as entity_ids
+            FROM entity_occurrences
+            WHERE page_id = ?
+            GROUP BY page_id
+            HAVING COUNT(*) > 1
+        """, (page_id,))
+
+        if entity_ids_row and entity_ids_row['entity_ids']:
+            entity_ids = [int(x) for x in entity_ids_row['entity_ids'].split(',')]
+            for i in range(len(entity_ids)):
+                for j in range(i+1, len(entity_ids)):
+                    e1, e2 = sorted([entity_ids[i], entity_ids[j]])
+                    db.execute("""
+                        INSERT OR IGNORE INTO cooccurrences (entity_id_1, entity_id_2, page_id)
+                        VALUES (?, ?, ?)
+                    """, (e1, e2, page_id))
+                    stats['cooccurrences_built'] += 1
+
+    if own_db:
+        db.disconnect()
+
+    return {
+        'success': True,
+        'file_id': file_id,
+        'filename': pdf_data['filename'],
+        'pages': pdf_data['page_count'],
+        'stats': stats
+    }
+
+
 @app.route('/api/upload-pdf', methods=['POST'])
 def upload_pdf():
-    """Upload i przetwarzanie PDF"""
+    """Upload i pełen auto-process pipeline"""
     try:
         if 'file' not in request.files:
             return jsonify({'error': 'Brak pliku'}), 400
@@ -136,70 +362,20 @@ def upload_pdf():
         if not file.filename.endswith('.pdf'):
             return jsonify({'error': 'Tylko pliki PDF'}), 400
 
-        # Zapisz plik
         imports_dir = Path(CONFIG['imports_dir'])
         imports_dir.mkdir(parents=True, exist_ok=True)
         filepath = imports_dir / file.filename
-
         file.save(str(filepath))
 
-        # Przetwórz PDF
-        reader = PDFReader()
-        extractor = KWExtractor()
-        db = DatabaseManager(CONFIG['db_path'])
-        db.connect()
+        binder_name = request.form.get('binder_name', 'Default')
 
-        pdf_data = reader.read_pdf(str(filepath))
-        if not pdf_data:
+        # Pełen auto-process pipeline
+        result = auto_process_pdf(filepath, binder_name)
+
+        if not result:
             return jsonify({'error': 'Błąd odczytywania PDF'}), 400
 
-        # Dodaj do bazy
-        binder_name = request.form.get('binder_name', 'Default')
-        binder_id = db.add_binder(binder_name)
-
-        file_id = db.add_source_file(
-            binder_id,
-            pdf_data['filename'],
-            pdf_data['filepath'],
-            pdf_data['file_hash'],
-            pdf_data['page_count']
-        )
-
-        # Ekstrahuj KW
-        kw_count = 0
-        for page_data in pdf_data['pages']:
-            page_num = page_data['page_number']
-            text = page_data['text']
-
-            page_id = db.add_page(file_id, page_num, text)
-
-            kws = extractor.extract_from_text(text, page_num)
-            for kw in kws:
-                kw_full = kw['kw_full']
-                kw_id = db.add_land_register(
-                    kw_full,
-                    kw['kw_district'],
-                    kw['kw_number'],
-                    kw['kw_checksum']
-                )
-                db.add_land_register_occurrence(
-                    kw_id,
-                    page_id,
-                    file_id,
-                    kw['context_before'],
-                    kw['context_after']
-                )
-                kw_count += 1
-
-        db.disconnect()
-
-        return jsonify({
-            'success': True,
-            'filename': pdf_data['filename'],
-            'pages': pdf_data['page_count'],
-            'kw_found': len(set(kw['kw_full'] for page in pdf_data['pages']
-                               for kw in extractor.extract_from_text(page['text'], page['page_number'])))
-        })
+        return jsonify(result)
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1348,6 +1524,33 @@ def rescan_ocr():
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/page-by-file-page/<int:file_id>/<int:page_number>', methods=['GET'])
+def get_page_by_file_page(file_id, page_number):
+    """Pobierz page_id + tekst po file_id i page_number"""
+    try:
+        db = DatabaseManager(CONFIG['db_path'])
+        db.connect()
+
+        page = db.fetch_one(
+            "SELECT id, page_number, text_content FROM pages WHERE file_id = ? AND page_number = ?",
+            (file_id, page_number)
+        )
+        db.disconnect()
+
+        if not page:
+            return jsonify({'success': False, 'error': 'Strona nie znaleziona'}), 404
+
+        return jsonify({
+            'success': True,
+            'page_id': page['id'],
+            'page_number': page['page_number'],
+            'text': page['text_content'] or ''
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/page-text/<int:page_id>', methods=['GET'])
 def get_page_text(page_id):

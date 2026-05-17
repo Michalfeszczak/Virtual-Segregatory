@@ -794,28 +794,52 @@
         </div>
     </div>
 
-    <!-- PDF Viewer Modal -->
+    <!-- PDF Viewer Modal - PEŁNY EKRAN -->
     <div id="pdfModal" class="modal">
-        <div style="width: 95%; max-width: 1000px; background: white; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 90vh; overflow-y: auto;">
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid #eee;">
-                <h3 id="pdfTitle" style="margin: 0; color: #333;">PDF Viewer</h3>
-                <span class="modal-close" onclick="closePDFModal()" style="cursor: pointer;">&times;</span>
+        <div style="width: 98%; height: 95vh; max-width: 1600px; background: white; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; border-bottom: 1px solid #eee; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px 12px 0 0;">
+                <h3 id="pdfTitle" style="margin: 0; color: white; font-size: 16px;">PDF Viewer</h3>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button onclick="zoomOut()" style="background: rgba(255,255,255,0.2); color: white; padding: 6px 12px;">➖</button>
+                    <span id="zoomLevel" style="color: white; font-size: 13px; min-width: 50px; text-align: center;">100%</span>
+                    <button onclick="zoomIn()" style="background: rgba(255,255,255,0.2); color: white; padding: 6px 12px;">➕</button>
+                    <button onclick="fitToWidth()" style="background: rgba(255,255,255,0.2); color: white; padding: 6px 12px;">↔️ Fit</button>
+                    <span class="modal-close" onclick="closePDFModal()" style="cursor: pointer; color: white; font-size: 28px; margin-left: 10px;">&times;</span>
+                </div>
             </div>
 
-            <div style="padding: 20px;">
-                <div id="pdfViewer">
-                    <div class="loading"></div>
-                </div>
+            <div id="pdfViewer" style="flex: 1; overflow: auto; padding: 20px; background: #f0f0f0; text-align: center;">
+                <div class="loading"></div>
+            </div>
 
-                <div class="pdf-controls">
-                    <div class="pdf-nav">
-                        <button onclick="previousPDFPage()" style="background: #667eea;">◀ Poprzednia</button>
-                        <button onclick="nextPDFPage()" style="background: #667eea;">Następna ▶</button>
-                        <button onclick="editPDFPageText()" style="background: #ff9800;">✏️ Edytuj tekst</button>
-                    </div>
-                    <div class="pdf-info">
-                        Strona <span id="pdfPageNum">1</span> z <span id="pdfPageTotal">0</span>
-                    </div>
+            <div class="pdf-controls" style="padding: 12px 20px; border-top: 1px solid #eee; background: white; border-radius: 0 0 12px 12px;">
+                <div class="pdf-nav">
+                    <button onclick="previousPDFPage()" style="background: #667eea;">◀ Poprzednia</button>
+                    <button onclick="nextPDFPage()" style="background: #667eea;">Następna ▶</button>
+                    <button onclick="editCurrentPageText()" style="background: #ff9800;">✏️ Edytuj tekst strony</button>
+                    <button onclick="showOCRStatus()" style="background: #17a2b8;">🤖 OCR Info</button>
+                </div>
+                <div class="pdf-info">
+                    Strona <input type="number" id="pdfPageInput" min="1" value="1" onchange="goToPage(this.value)" style="width: 60px; padding: 4px; text-align: center;"> z <span id="pdfPageTotal">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- POPUP EDYCJI TEKSTU STRONY (nakładka na PDF Modal) -->
+    <div id="editPagePopup" class="modal" style="z-index: 10000;">
+        <div style="width: 600px; max-width: 90%; background: white; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.4);">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: linear-gradient(135deg, #ff9800 0%, #e65100 100%); border-radius: 12px 12px 0 0;">
+                <h3 style="margin: 0; color: white; font-size: 16px;">✏️ Edytuj tekst strony <span id="editPageNum">1</span></h3>
+                <span onclick="closeEditPagePopup()" style="cursor: pointer; color: white; font-size: 24px;">&times;</span>
+            </div>
+            <div style="padding: 20px;">
+                <input type="hidden" id="editPageId" value="">
+                <p style="margin-bottom: 10px; color: #666; font-size: 13px;">Popraw błędy OCR i kliknij Zapisz:</p>
+                <textarea id="editPageText" style="width: 100%; height: 350px; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-family: 'Courier New'; font-size: 12px; line-height: 1.5;"></textarea>
+                <div style="display: flex; gap: 10px; margin-top: 15px; justify-content: flex-end;">
+                    <button onclick="closeEditPagePopup()" style="background: #6c757d;">Anuluj</button>
+                    <button onclick="saveEditedPageText()" style="background: #28a745;">💾 Zapisz</button>
                 </div>
             </div>
         </div>
@@ -906,10 +930,10 @@
 
         // Batch Import
         async function batchImport() {
-            if (!confirm('Importować wszystkie PDF-y z folderu imports?')) return;
+            if (!confirm('Importować wszystkie PDF-y z folderu imports?\n\nUWAGA: Pełen pipeline (OCR + KW + Encje + Tagi + Cooccurrences) - może potrwać kilka minut!')) return;
 
             document.getElementById('uploadProgress').style.display = 'block';
-            document.getElementById('progressText').textContent = 'Batch import w trakcie...';
+            document.getElementById('progressText').textContent = 'Auto-process w trakcie: OCR → KW → Encje → Tagi → Relacje...';
 
             try {
                 const response = await fetch('/api/batch-import', {
@@ -921,7 +945,30 @@
                 document.getElementById('uploadProgress').style.display = 'none';
 
                 if (data.success) {
-                    showAlert(`✅ Import zakończony!\n📁 Pliki: ${data.files_imported}\n📄 Strony: ${data.pages_processed}\n📖 KW: ${data.kw_found}`, 'success');
+                    const result = document.getElementById('uploadResult');
+                    const resultText = document.getElementById('uploadResultText');
+                    result.style.display = 'block';
+                    resultText.innerHTML = `
+                        <div style="background: #d4edda; border-radius: 8px; padding: 15px; color: #155724;">
+                            <h3 style="margin-bottom: 10px;">✅ Import zakończony!</h3>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; font-size: 13px;">
+                                <div>📁 Pliki: <strong>${data.files_imported}</strong></div>
+                                <div>📄 Strony: <strong>${data.pages_processed}</strong></div>
+                                <div>📖 KW: <strong>${data.kw_found}</strong></div>
+                                <div>👤 Osoby: <strong>${data.persons_found}</strong></div>
+                                <div>🏢 Firmy: <strong>${data.companies_found}</strong></div>
+                                <div>🏛️ Instytucje: <strong>${data.institutions_found}</strong></div>
+                                <div>📊 NIP: <strong>${data.nips_found}</strong></div>
+                                <div>📋 REGON: <strong>${data.regons_found}</strong></div>
+                                <div>📑 KRS: <strong>${data.krs_found}</strong></div>
+                                <div>🆔 PESEL: <strong>${data.pesels_found}</strong></div>
+                                <div>📱 Tel: <strong>${data.phones_found}</strong></div>
+                                <div>🏷️ Tagi: <strong>${data.tags_added}</strong></div>
+                                <div>🔗 Relacje: <strong>${data.cooccurrences_built}</strong></div>
+                            </div>
+                        </div>
+                    `;
+                    showAlert(`✅ Auto-process zakończony! ${data.files_imported} plików przetworzone`, 'success');
                     loadFiles();
                     loadRegisters();
                     loadStatistics();
@@ -961,9 +1008,34 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    showAlert(`✅ Importowano: ${data.filename} (${data.pages} stron, ${data.kw_found} KW)`, 'success');
+                    const s = data.stats || {};
+                    const result = document.getElementById('uploadResult');
+                    const resultText = document.getElementById('uploadResultText');
+                    result.style.display = 'block';
+                    resultText.innerHTML = `
+                        <div style="background: #d4edda; border-radius: 8px; padding: 15px; color: #155724;">
+                            <h3 style="margin-bottom: 10px;">✅ Auto-process zakończony: ${data.filename}</h3>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; font-size: 13px;">
+                                <div>📄 Strony: <strong>${data.pages}</strong></div>
+                                <div>📖 KW: <strong>${s.kw_found || 0}</strong></div>
+                                <div>👤 Osoby: <strong>${s.persons_found || 0}</strong></div>
+                                <div>🏢 Firmy: <strong>${s.companies_found || 0}</strong></div>
+                                <div>🏛️ Instytucje: <strong>${s.institutions_found || 0}</strong></div>
+                                <div>📊 NIP: <strong>${s.nips_found || 0}</strong></div>
+                                <div>📋 REGON: <strong>${s.regons_found || 0}</strong></div>
+                                <div>📑 KRS: <strong>${s.krs_found || 0}</strong></div>
+                                <div>🆔 PESEL: <strong>${s.pesels_found || 0}</strong></div>
+                                <div>📱 Tel: <strong>${s.phones_found || 0}</strong></div>
+                                <div>🏷️ Tagi: <strong>${s.tags_added || 0}</strong></div>
+                                <div>🔗 Relacje: <strong>${s.cooccurrences_built || 0}</strong></div>
+                            </div>
+                        </div>
+                    `;
+                    showAlert(`✅ Importowano: ${data.filename}`, 'success');
                     fileInput.value = '';
                     document.getElementById('binderName').value = 'Default';
+                    loadFiles();
+                    loadStatistics();
                 } else {
                     showAlert(`❌ Błąd: ${data.error}`, 'error');
                 }
@@ -1252,9 +1324,15 @@
         }
 
         // PDF Viewer Functions
+        let currentFileId = null;
+        let currentZoom = 1.0;
+        let autoFit = true;
+
         async function openPDFViewer(filename, fileId) {
-            currentFilePath = fileId;
+            currentFileId = fileId;
             currentPage = 1;
+            currentZoom = 1.0;
+            autoFit = true;
 
             document.getElementById('pdfTitle').textContent = `📄 ${filename}`;
             document.getElementById('pdfModal').classList.add('active');
@@ -1267,6 +1345,7 @@
                 pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
                 document.getElementById('pdfPageTotal').textContent = pdfDoc.numPages;
+                document.getElementById('pdfPageInput').max = pdfDoc.numPages;
                 renderPDFPage(1);
             } catch (error) {
                 showAlert(`Błąd: ${error.message}`, 'error');
@@ -1281,10 +1360,18 @@
                 const page = await pdfDoc.getPage(pageNum);
                 const viewer = document.getElementById('pdfViewer');
 
-                // Skaluj do szerokości kontenera
-                const containerWidth = viewer.offsetWidth;
-                const pageWidth = page.getViewport({ scale: 1 }).width;
-                const scale = containerWidth / pageWidth;
+                let scale;
+                if (autoFit) {
+                    // Fit to width - większy padding aby było widać dobrze
+                    const containerWidth = viewer.offsetWidth - 60;
+                    const pageWidth = page.getViewport({ scale: 1 }).width;
+                    scale = containerWidth / pageWidth;
+                    currentZoom = scale;
+                } else {
+                    scale = currentZoom;
+                }
+
+                document.getElementById('zoomLevel').textContent = Math.round(scale * 100) + '%';
 
                 const viewport = page.getViewport({ scale: scale });
 
@@ -1292,6 +1379,8 @@
                 const context = canvas.getContext('2d');
                 canvas.height = viewport.height;
                 canvas.width = viewport.width;
+                canvas.style.boxShadow = '0 4px 20px rgba(0,0,0,0.15)';
+                canvas.style.background = 'white';
 
                 await page.render({
                     canvasContext: context,
@@ -1299,15 +1388,36 @@
                 }).promise;
 
                 viewer.innerHTML = '';
-                viewer.style.display = 'flex';
-                viewer.style.justifyContent = 'center';
-                viewer.style.alignItems = 'flex-start';
                 viewer.appendChild(canvas);
 
-                document.getElementById('pdfPageNum').textContent = pageNum;
+                document.getElementById('pdfPageInput').value = pageNum;
                 currentPage = pageNum;
             } catch (error) {
                 showAlert(`Błąd renderowania: ${error.message}`, 'error');
+            }
+        }
+
+        function zoomIn() {
+            autoFit = false;
+            currentZoom = Math.min(currentZoom * 1.25, 5);
+            renderPDFPage(currentPage);
+        }
+
+        function zoomOut() {
+            autoFit = false;
+            currentZoom = Math.max(currentZoom / 1.25, 0.25);
+            renderPDFPage(currentPage);
+        }
+
+        function fitToWidth() {
+            autoFit = true;
+            renderPDFPage(currentPage);
+        }
+
+        function goToPage(pageNum) {
+            pageNum = parseInt(pageNum);
+            if (pdfDoc && pageNum >= 1 && pageNum <= pdfDoc.numPages) {
+                renderPDFPage(pageNum);
             }
         }
 
@@ -1327,20 +1437,75 @@
             document.getElementById('pdfModal').classList.remove('active');
             pdfDoc = null;
             currentPage = 1;
+            currentFileId = null;
         }
 
-        // Edit page text
-        let currentPageId = null;
-
-        async function editPDFPageText() {
-            if (!pdfDoc) {
+        // EDYCJA TEKSTU STRONY - POPUP w popupie
+        async function editCurrentPageText() {
+            if (!pdfDoc || !currentFileId) {
                 showAlert('Otwórz PDF aby edytować', 'error');
                 return;
             }
 
-            // Pobierz ID strony z bazy (przybliżenie - używamy currentPage)
-            // W realnym scenariuszu mielibyśmy ID strony
-            showAlert('Funkcja edycji tekstu - wymagane powiązanie strony z ID', 'info');
+            try {
+                // Pobierz page_id z bazy
+                const response = await fetch(`/api/page-by-file-page/${currentFileId}/${currentPage}`);
+                const data = await response.json();
+
+                if (!data.success) {
+                    showAlert('Nie można pobrać tekstu strony: ' + (data.error || 'Strona nie istnieje'), 'error');
+                    return;
+                }
+
+                // Otwórz popup edycji obok PDF
+                document.getElementById('editPageId').value = data.page_id;
+                document.getElementById('editPageNum').textContent = currentPage;
+                document.getElementById('editPageText').value = data.text || '';
+                document.getElementById('editPagePopup').classList.add('active');
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        async function saveEditedPageText() {
+            const pageId = document.getElementById('editPageId').value;
+            const text = document.getElementById('editPageText').value;
+
+            try {
+                const response = await fetch('/api/correct-page-text', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ page_id: pageId, text: text })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert('✅ Tekst strony zapisany', 'success');
+                    closeEditPagePopup();
+                } else {
+                    showAlert(`❌ ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        function closeEditPagePopup() {
+            document.getElementById('editPagePopup').classList.remove('active');
+        }
+
+        async function showOCRStatus() {
+            if (!currentFileId) return;
+            try {
+                const response = await fetch(`/api/page-by-file-page/${currentFileId}/${currentPage}`);
+                const data = await response.json();
+                if (data.success) {
+                    const textLen = (data.text || '').length;
+                    showAlert(`📄 Strona ${currentPage}: ${textLen} znaków OCR | Status: ${textLen > 50 ? '✅ OK' : '⚠️ Mało tekstu (sprawdź)'}`, 'info');
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
         }
 
         function closeEditTextModal() {
