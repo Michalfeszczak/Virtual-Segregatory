@@ -1,0 +1,1938 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Segregatory</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #333;
+            font-size: 32px;
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            border-bottom: 2px solid #eee;
+        }
+
+        .tab-button {
+            padding: 12px 24px;
+            border: none;
+            background: none;
+            font-size: 14px;
+            font-weight: 500;
+            color: #666;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab-button.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-button:hover {
+            color: #667eea;
+        }
+
+        .content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Upload Section */
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9ff;
+        }
+
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+
+        .upload-area.dragover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+
+        .upload-area input {
+            display: none;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .upload-text {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        .upload-info {
+            color: #999;
+            font-size: 13px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        /* Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        thead {
+            background: #f5f5f5;
+        }
+
+        th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #ddd;
+        }
+
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+            color: #666;
+        }
+
+        tr:hover {
+            background: #fafafa;
+        }
+
+        .kw-cell {
+            font-weight: 600;
+            color: #667eea;
+            font-family: 'Courier New', monospace;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 4px;
+        }
+
+        .btn-edit {
+            background: #667eea;
+        }
+
+        .btn-delete {
+            background: #dc3545;
+        }
+
+        .btn-export {
+            background: #28a745;
+        }
+
+        /* Stats */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+
+        /* Search */
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .search-box input {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        .search-box button {
+            width: auto;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .modal-close {
+            float: right;
+            font-size: 24px;
+            font-weight: bold;
+            color: #999;
+            cursor: pointer;
+        }
+
+        .modal-close:hover {
+            color: #333;
+        }
+
+        /* Alert */
+        .alert {
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert.active {
+            display: block;
+        }
+
+        .alert.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        /* Loading */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        /* PDF Viewer */
+        #pdfViewer {
+            width: 100%;
+            height: 700px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #f5f5f5;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        #pdfCanvas {
+            max-width: 100%;
+            max-height: 100%;
+            border: 1px solid #ddd;
+        }
+
+        .pdf-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 15px;
+            padding: 15px;
+            background: #f0f2ff;
+            border-radius: 8px;
+        }
+
+        .pdf-nav {
+            display: flex;
+            gap: 10px;
+        }
+
+        .pdf-nav button {
+            padding: 10px 20px;
+            width: auto;
+        }
+
+        .pdf-info {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .pdf-click-zones {
+            position: absolute;
+            width: 100%;
+            height: 700px;
+            display: flex;
+        }
+
+        .pdf-click-zone {
+            flex: 1;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        .pdf-click-zone:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            header {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            table {
+                font-size: 12px;
+            }
+
+            th, td {
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>🏛️ Virtual Segregatory</h1>
+            <p class="subtitle">Indeksowanie i wyszukiwanie Ksiąg Wieczystych</p>
+            <div class="tabs" style="flex-wrap: wrap;">
+                <button class="tab-button active" onclick="switchTab('upload')">📤 Import</button>
+                <button class="tab-button" onclick="switchTab('files')">📁 Pliki</button>
+                <button class="tab-button" onclick="switchTab('registers')">📖 Księgi</button>
+                <button class="tab-button" onclick="switchTab('search')">🔍 Szukaj</button>
+                <button class="tab-button" onclick="switchTab('entities')">👥 Encje</button>
+                <button class="tab-button" onclick="switchTab('relations')">🔗 Relacje</button>
+                <button class="tab-button" onclick="switchTab('tags')">🏷️ Tagi</button>
+                <button class="tab-button" onclick="switchTab('dictionary')">📚 Słownik</button>
+                <button class="tab-button" onclick="switchTab('bulk-ops')">⚙️ Operacje</button>
+                <button class="tab-button" onclick="switchTab('reports')">📊 Raporty</button>
+                <button class="tab-button" onclick="switchTab('statistics')">📈 Stats</button>
+            </div>
+        </header>
+
+        <!-- Content -->
+        <div class="content">
+            <div id="alert" class="alert"></div>
+
+            <!-- Upload Tab -->
+            <div id="upload" class="tab-content active" style="display: block;">
+                <h2 style="margin-bottom: 20px;">Importuj PDF</h2>
+
+                <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                    <div class="upload-icon">📄</div>
+                    <div class="upload-text">Przeciągnij PDF tutaj lub kliknij aby wybrać</div>
+                    <div class="upload-info">Obsługiwane pliki: PDF</div>
+                    <input type="file" id="fileInput" accept=".pdf" onchange="handleFileSelect(event)">
+                </div>
+
+                <input type="text" id="binderName" placeholder="Nazwa segregatora (np. 'Nieruchomości 2024')" value="Default">
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px;">
+                    <button onclick="uploadPDF()">
+                        <span id="uploadBtn">Importuj PDF</span>
+                    </button>
+                    <button onclick="batchImport()" style="background: #28a745;">
+                        📁 Batch Import
+                    </button>
+                </div>
+
+                <div id="uploadProgress" style="margin-top: 20px; display: none;">
+                    <div class="loading" style="margin-right: 10px; display: inline-block;"></div>
+                    Przetwarzanie... <span id="progressText"></span>
+                </div>
+
+                <div id="uploadResult" style="margin-top: 20px; display: none;">
+                    <div id="uploadResultText"></div>
+                </div>
+            </div>
+
+            <!-- Files Tab -->
+            <div id="files" class="tab-content">
+                <h2 style="margin-bottom: 20px;">📁 Wszystkie Pliki PDF</h2>
+
+                <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                    <button onclick="loadFiles()">Odśwież</button>
+                    <button onclick="rescanOCR()" style="background: #ff9800;">🔄 Pełny OCR Scan</button>
+                </div>
+
+                <div id="rescanProgress" style="display: none; margin-bottom: 20px;">
+                    <div style="background: #f0f2ff; padding: 20px; border-radius: 8px;">
+                        <div class="loading" style="display: inline-block; margin-right: 10px;"></div>
+                        <span id="rescanText">Skanowanie...</span>
+                    </div>
+                </div>
+
+                <div id="filesContainer" style="margin-top: 20px;">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📁</div>
+                        <p>Brak plików. Importuj PDF aby zacząć.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Registers Tab -->
+            <div id="registers" class="tab-content">
+                <h2 style="margin-bottom: 20px;">Księgi Wieczyste</h2>
+
+                <div style="background: #f0f2ff; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <h3 style="font-size: 16px; margin-bottom: 15px;">➕ Dodaj KW ręcznie</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                        <input type="text" id="kwInput" placeholder="Numer KW (np. SZ1S/00012345/6)">
+                        <input type="text" id="addressInput" placeholder="Adres nieruchomości">
+                        <input type="text" id="ownerInputManual" placeholder="Właściciel">
+                        <button onclick="addKWManual()" style="background: #28a745;">Dodaj KW</button>
+                    </div>
+                </div>
+
+                <button onclick="loadRegisters()" class="btn-export">Odśwież</button>
+                <button onclick="exportToExcel()" class="btn-export" style="margin-left: 10px;">📥 Eksport Excel</button>
+
+                <div id="registersContainer" style="margin-top: 20px;">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <p>Brak Ksiąg Wieczystych. Dodaj ręcznie lub importuj PDF.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search Tab -->
+            <div id="search" class="tab-content">
+                <h2 style="margin-bottom: 20px;">Szukaj Księgi Wieczystej</h2>
+
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="Wpisz frazy (rozdziel spacją) - np. Kowalski Nowak SZ1S">
+                    <button onclick="performSmartSearch()" style="background: #28a745;">⭐ Smart Search</button>
+                    <button onclick="performSearch()">Szukaj</button>
+                </div>
+                <div style="margin-bottom: 20px; padding: 10px; background: #fff3cd; border-radius: 6px; font-size: 13px;">
+                    💡 <strong>Smart Search</strong> używa rankingu: Priorytet 1 (cała strona) → Priorytet 2 (dokument) → Priorytet 3 (częściowo)
+                </div>
+
+                <div id="searchResults" style="margin-top: 20px;">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <p>Wpisz szukany tekst powyżej</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Entities Tab -->
+            <div id="entities" class="tab-content">
+                <h2 style="margin-bottom: 20px;">👥 Encje w Dokumentach</h2>
+
+                <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+                    <button onclick="extractEntities()" style="background: #ff9800;">
+                        🤖 Rozpoznaj wszystkie encje
+                    </button>
+                    <button onclick="buildCooccurrences()" style="background: #6f42c1;">
+                        🔗 Buduj relacje (co-occurrences)
+                    </button>
+                </div>
+
+                <div style="background: #f0f2ff; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <h3 style="font-size: 14px; margin-bottom: 10px;">🔎 Znajdź powiązane z encją</h3>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="relatedInput" placeholder="Np. Kowalski lub SZ1S/00012345/6" style="flex: 1;">
+                        <button onclick="findRelated()">Znajdź</button>
+                    </div>
+                    <div id="relatedResults" style="margin-top: 10px;"></div>
+                </div>
+
+                <div id="entityStatsContainer" style="margin-bottom: 20px;"></div>
+
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
+                    <button onclick="loadEntities('person')" class="btn-small">👤 Osoby</button>
+                    <button onclick="loadEntities('company')" class="btn-small">🏢 Firmy</button>
+                    <button onclick="loadEntities('institution')" class="btn-small">🏛️ Instytucje</button>
+                    <button onclick="loadEntities('nip')" class="btn-small">📊 NIP</button>
+                    <button onclick="loadEntities('regon')" class="btn-small">📋 REGON</button>
+                    <button onclick="loadEntities('krs')" class="btn-small">📑 KRS</button>
+                    <button onclick="loadEntities('pesel')" class="btn-small">🆔 PESEL</button>
+                    <button onclick="loadEntities('phone')" class="btn-small">📱 Telefony</button>
+                    <button onclick="loadEntities('email')" class="btn-small">📧 Emaile</button>
+                    <button onclick="loadEntities('signature')" class="btn-small">⚖️ Sygnatury</button>
+                </div>
+
+                <div id="entitiesContainer" style="margin-top: 20px;">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">👥</div>
+                        <p>Kliknij "Rozpoznaj wszystkie encje" lub wybierz typ</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tags Tab -->
+            <div id="tags" class="tab-content">
+                <h2 style="margin-bottom: 20px;">🏷️ Auto-Tagi Dokumentów</h2>
+
+                <button onclick="autoTagDocuments()" style="background: #ff9800; margin-bottom: 20px;">
+                    🤖 Auto-Taguj dokumenty
+                </button>
+
+                <div id="tagsContainer" style="margin-top: 20px;">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🏷️</div>
+                        <p>Kliknij "Auto-Taguj" aby rozpoznać typy dokumentów</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dictionary Tab -->
+            <div id="dictionary" class="tab-content">
+                <h2 style="margin-bottom: 20px;">📚 Słownik Użytkownika</h2>
+
+                <div style="background: #f0f2ff; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <h3 style="font-size: 16px; margin-bottom: 15px;">➕ Dodaj Słowo</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                        <input type="text" id="dictOriginal" placeholder="Błędne słowo (np. Zdzistaw)">
+                        <input type="text" id="dictReplacement" placeholder="Poprawne słowo (np. Zdzisław)">
+                        <button onclick="addDictionaryWord()" style="background: #28a745;">Dodaj</button>
+                    </div>
+                </div>
+
+                <button onclick="loadDictionary()" style="margin-bottom: 20px;">Odśwież</button>
+
+                <div id="dictionaryContainer" style="margin-top: 20px;">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📚</div>
+                        <p>Brak słów w słowniku</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reports Tab -->
+            <div id="reports" class="tab-content">
+                <h2 style="margin-bottom: 20px;">📊 Raporty</h2>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px;">
+                    <button onclick="loadReportKW()" style="background: #667eea; height: 100px; font-size: 16px;">📖 Raport KW</button>
+                    <button onclick="loadReportCoverage()" style="background: #ff9800; height: 100px; font-size: 16px;">📈 Coverage</button>
+                    <button onclick="exportReportsCSV()" style="background: #28a745; height: 100px; font-size: 16px;">📥 Eksport CSV</button>
+                    <button onclick="exportAllExcel()" style="background: #6f42c1; height: 100px; font-size: 16px;">📊 Pełny Excel</button>
+                    <button onclick="createBackup()" style="background: #dc3545; height: 100px; font-size: 16px;">💾 Backup Bazy</button>
+                </div>
+
+                <div id="reportsContainer" style="margin-top: 20px;">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📊</div>
+                        <p>Kliknij przycisk aby wygenerować raport</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Relations Tab -->
+            <div id="relations" class="tab-content">
+                <h2 style="margin-bottom: 20px;">🔗 Relacje między encjami</h2>
+
+                <div style="display: grid; grid-template-columns: 1fr 150px; gap: 10px; margin-bottom: 20px;">
+                    <input type="text" id="relationEntityInput" placeholder="Wpisz osobę, firmę lub KW...">
+                    <select id="relationTypeFilter">
+                        <option value="">Wszystkie</option>
+                        <option value="person">Osoby</option>
+                        <option value="company">Firmy</option>
+                        <option value="kw">Księgi Wieczyste</option>
+                        <option value="institution">Instytucje</option>
+                    </select>
+                </div>
+
+                <button onclick="findRelations()" style="background: #667eea; margin-bottom: 20px;">Znajdź relacje</button>
+
+                <div id="relationsResult" style="display: none;">
+                    <h3 id="relationsEntityName" style="margin-bottom: 10px; color: #667eea;"></h3>
+                    <div id="relationsTable"></div>
+                </div>
+
+                <div id="relationsEmpty" style="display: none;">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔗</div>
+                        <p>Wpisz encję aby zobaczyć jej relacje</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bulk Operations Tab -->
+            <div id="bulk-ops" class="tab-content">
+                <h2 style="margin-bottom: 20px;">⚙️ Operacje Masowe</h2>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                    <!-- Batch Import -->
+                    <div class="operation-card" style="border: 1px solid #eee; border-radius: 8px; padding: 20px; background: #f9f9f9;">
+                        <h3 style="margin-bottom: 10px;">📤 Batch Import</h3>
+                        <p style="font-size: 12px; color: #666; margin-bottom: 15px;">Importuj całe foldery PDF-ów z `/imports/`</p>
+                        <button onclick="batchImport()" style="width: 100%; background: #28a745;">Uruchom</button>
+                        <div class="progress-bar" id="import-progress" style="display: none; margin-top: 10px; background: #e0e0e0; height: 6px; border-radius: 3px; overflow: hidden;">
+                            <div style="background: #28a745; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                        </div>
+                        <span id="import-status" style="display: block; margin-top: 8px; font-size: 12px; color: #666;">Gotowy</span>
+                    </div>
+
+                    <!-- Rescan OCR -->
+                    <div class="operation-card" style="border: 1px solid #eee; border-radius: 8px; padding: 20px; background: #f9f9f9;">
+                        <h3 style="margin-bottom: 10px;">🔄 Rescan OCR</h3>
+                        <p style="font-size: 12px; color: #666; margin-bottom: 15px;">Przetwórz wszystkie dokumenty z User Dictionary</p>
+                        <button onclick="rescanOCR()" style="width: 100%; background: #ff9800;">Uruchom</button>
+                        <div class="progress-bar" id="ocr-progress" style="display: none; margin-top: 10px; background: #e0e0e0; height: 6px; border-radius: 3px; overflow: hidden;">
+                            <div style="background: #ff9800; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                        </div>
+                        <span id="ocr-status" style="display: block; margin-top: 8px; font-size: 12px; color: #666;">Gotowy</span>
+                    </div>
+
+                    <!-- Build Cooccurrences -->
+                    <div class="operation-card" style="border: 1px solid #eee; border-radius: 8px; padding: 20px; background: #f9f9f9;">
+                        <h3 style="margin-bottom: 10px;">🔗 Build Cooccurrences</h3>
+                        <p style="font-size: 12px; color: #666; margin-bottom: 15px;">Analizuj powiązania między encjami</p>
+                        <button onclick="buildCooccurrences()" style="width: 100%; background: #17a2b8;">Uruchom</button>
+                        <div class="progress-bar" id="cooc-progress" style="display: none; margin-top: 10px; background: #e0e0e0; height: 6px; border-radius: 3px; overflow: hidden;">
+                            <div style="background: #17a2b8; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                        </div>
+                        <span id="cooc-status" style="display: block; margin-top: 8px; font-size: 12px; color: #666;">Gotowy</span>
+                    </div>
+
+                    <!-- Auto-tag Documents -->
+                    <div class="operation-card" style="border: 1px solid #eee; border-radius: 8px; padding: 20px; background: #f9f9f9;">
+                        <h3 style="margin-bottom: 10px;">🏷️ Auto-tag Documents</h3>
+                        <p style="font-size: 12px; color: #666; margin-bottom: 15px;">Klasyfikuj wszystkie dokumenty automatycznie</p>
+                        <button onclick="autoTagDocuments()" style="width: 100%; background: #6f42c1;">Uruchom</button>
+                        <div class="progress-bar" id="tag-progress" style="display: none; margin-top: 10px; background: #e0e0e0; height: 6px; border-radius: 3px; overflow: hidden;">
+                            <div style="background: #6f42c1; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                        </div>
+                        <span id="tag-status" style="display: block; margin-top: 8px; font-size: 12px; color: #666;">Gotowy</span>
+                    </div>
+
+                    <!-- Extract Entities -->
+                    <div class="operation-card" style="border: 1px solid #eee; border-radius: 8px; padding: 20px; background: #f9f9f9;">
+                        <h3 style="margin-bottom: 10px;">👥 Extract Entities</h3>
+                        <p style="font-size: 12px; color: #666; margin-bottom: 15px;">Rozpoznaj wszystkie encje (osoby, firmy, KW)</p>
+                        <button onclick="extractEntities()" style="width: 100%; background: #dc3545;">Uruchom</button>
+                        <div class="progress-bar" id="entity-progress" style="display: none; margin-top: 10px; background: #e0e0e0; height: 6px; border-radius: 3px; overflow: hidden;">
+                            <div style="background: #dc3545; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                        </div>
+                        <span id="entity-status" style="display: block; margin-top: 8px; font-size: 12px; color: #666;">Gotowy</span>
+                    </div>
+                </div>
+
+                <h3 style="margin-top: 30px; margin-bottom: 15px;">📋 Historia operacji</h3>
+                <div id="operationsLog" style="background: #f9f9f9; border-radius: 8px; padding: 15px; max-height: 300px; overflow-y: auto; font-size: 12px;">
+                    <p style="color: #999;">Brak wykonanych operacji</p>
+                </div>
+            </div>
+
+            <!-- Statistics Tab -->
+            <div id="statistics" class="tab-content">
+                <h2 style="margin-bottom: 20px;">Statystyki</h2>
+
+                <div id="statsContainer" class="stats">
+                    <div class="loading"></div>
+                </div>
+
+                <button onclick="loadStatistics()" style="margin-top: 20px;">Odśwież</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PDF Viewer Modal -->
+    <div id="pdfModal" class="modal">
+        <div style="width: 95%; max-width: 1000px; background: white; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid #eee;">
+                <h3 id="pdfTitle" style="margin: 0; color: #333;">PDF Viewer</h3>
+                <span class="modal-close" onclick="closePDFModal()" style="cursor: pointer;">&times;</span>
+            </div>
+
+            <div style="padding: 20px;">
+                <div id="pdfViewer">
+                    <div class="loading"></div>
+                </div>
+
+                <div class="pdf-controls">
+                    <div class="pdf-nav">
+                        <button onclick="previousPDFPage()" style="background: #667eea;">◀ Poprzednia</button>
+                        <button onclick="nextPDFPage()" style="background: #667eea;">Następna ▶</button>
+                        <button onclick="editPDFPageText()" style="background: #ff9800;">✏️ Edytuj tekst</button>
+                    </div>
+                    <div class="pdf-info">
+                        Strona <span id="pdfPageNum">1</span> z <span id="pdfPageTotal">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Text Modal -->
+    <div id="editTextModal" class="modal">
+        <div class="modal-content" style="width: 90%; max-width: 800px;">
+            <span class="modal-close" onclick="closeEditTextModal()">&times;</span>
+            <div class="modal-header">Edytuj tekst strony</div>
+            <textarea id="pageTextArea" style="width: 100%; height: 400px; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-family: 'Courier New'; font-size: 12px; margin-bottom: 15px;"></textarea>
+            <div class="button-group">
+                <button onclick="savePageText()" style="flex: 1;">Zapisz poprawki</button>
+                <button onclick="closeEditTextModal()" style="flex: 1; background: #ccc;">Anuluj</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeEditModal()">&times;</span>
+            <div class="modal-header">Edytuj właściciela</div>
+            <input type="text" id="ownerInput" placeholder="Wpisz imię i nazwisko właściciela">
+            <div class="button-group">
+                <button onclick="saveOwner()" style="flex: 1;">Zapisz</button>
+                <button onclick="closeEditModal()" style="flex: 1; background: #ccc;">Anuluj</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentKWId = null;
+        let pdfDoc = null;
+        let currentPage = 1;
+        let currentFilePath = null;
+
+        // Set up PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        // Tab switching
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
+
+            document.getElementById(tab).classList.add('active');
+            event.target.classList.add('active');
+
+            if (tab === 'files') loadFiles();
+            if (tab === 'registers') loadRegisters();
+            if (tab === 'dictionary') loadDictionary();
+            if (tab === 'statistics') loadStatistics();
+            if (tab === 'entities') loadEntityStats();
+            if (tab === 'tags') loadDocumentTags();
+        }
+
+        // File upload
+        const uploadArea = document.getElementById('uploadArea');
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].name.endsWith('.pdf')) {
+                document.getElementById('fileInput').files = files;
+                showAlert(`Wybrany plik: ${files[0].name}`, 'success');
+            } else {
+                showAlert('Wybierz plik PDF', 'error');
+            }
+        });
+
+        function handleFileSelect(e) {
+            const filename = e.target.files[0]?.name || '';
+            if (filename) {
+                showAlert(`Wybrany plik: ${filename}`, 'success');
+            }
+        }
+
+        // Batch Import
+        async function batchImport() {
+            if (!confirm('Importować wszystkie PDF-y z folderu imports?')) return;
+
+            document.getElementById('uploadProgress').style.display = 'block';
+            document.getElementById('progressText').textContent = 'Batch import w trakcie...';
+
+            try {
+                const response = await fetch('/api/batch-import', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                document.getElementById('uploadProgress').style.display = 'none';
+
+                if (data.success) {
+                    showAlert(`✅ Import zakończony!\n📁 Pliki: ${data.files_imported}\n📄 Strony: ${data.pages_processed}\n📖 KW: ${data.kw_found}`, 'success');
+                    loadFiles();
+                    loadRegisters();
+                    loadStatistics();
+                } else {
+                    showAlert(`❌ ${data.error}`, 'error');
+                }
+            } catch (error) {
+                document.getElementById('uploadProgress').style.display = 'none';
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        // Upload PDF
+        async function uploadPDF() {
+            const fileInput = document.getElementById('fileInput');
+            const binderName = document.getElementById('binderName').value.trim() || 'Default';
+
+            if (!fileInput.files[0]) {
+                showAlert('Wybierz plik PDF', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('binder_name', binderName);
+
+            document.getElementById('uploadProgress').style.display = 'block';
+            document.getElementById('uploadBtn').textContent = 'Przetwarzanie...';
+            document.getElementById('uploadBtn').parentElement.disabled = true;
+
+            try {
+                const response = await fetch('/api/upload-pdf', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert(`✅ Importowano: ${data.filename} (${data.pages} stron, ${data.kw_found} KW)`, 'success');
+                    fileInput.value = '';
+                    document.getElementById('binderName').value = 'Default';
+                } else {
+                    showAlert(`❌ Błąd: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showAlert(`❌ Błąd: ${error.message}`, 'error');
+            } finally {
+                document.getElementById('uploadProgress').style.display = 'none';
+                document.getElementById('uploadBtn').textContent = 'Importuj PDF';
+                document.getElementById('uploadBtn').parentElement.disabled = false;
+            }
+        }
+
+        // Load registers
+        async function loadRegisters() {
+            try {
+                const response = await fetch('/api/land-registers');
+                const data = await response.json();
+
+                if (data.success && data.data.length > 0) {
+                    let html = '<table><thead><tr><th>Księga Wieczysta</th><th>Okręg</th><th>Adres</th><th>Właściciel</th><th>Akcje</th></tr></thead><tbody>';
+
+                    data.data.forEach(kw => {
+                        html += `<tr>
+                            <td class="kw-cell">${kw.kw_full}</td>
+                            <td>${kw.district}</td>
+                            <td>${kw.address}</td>
+                            <td>${kw.owner}</td>
+                            <td><button class="btn-small btn-edit" onclick="openEditModal(${kw.id}, '${kw.owner}')">Edytuj</button>
+                            <button class="btn-small btn-delete" onclick="deleteKW(${kw.id})">Usuń</button></td>
+                        </tr>`;
+                    });
+
+                    html += '</tbody></table>';
+                    document.getElementById('registersContainer').innerHTML = html;
+                } else {
+                    document.getElementById('registersContainer').innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><p>Brak Ksiąg Wieczystych</p></div>';
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        // Load files
+        async function loadFiles() {
+            try {
+                const response = await fetch('/api/files');
+                const data = await response.json();
+
+                if (data.success && data.data.length > 0) {
+                    let html = '<table><thead><tr><th>Plik</th><th>Segregator</th><th>Strony</th><th>Indeksowane</th><th>Akcja</th></tr></thead><tbody>';
+
+                    data.data.forEach(file => {
+                        const percent = file.pages > 0 ? Math.round((file.pages_indexed / file.pages) * 100) : 0;
+                        html += `<tr>
+                            <td><strong>📄 ${file.filename}</strong></td>
+                            <td>${file.binder}</td>
+                            <td>${file.pages}</td>
+                            <td>${file.pages_indexed}/${file.pages} (${percent}%)</td>
+                            <td><button class="btn-small btn-edit" onclick="openPDFViewer('${file.filename}', '${file.id}')">👁️ Otwórz</button></td>
+                        </tr>`;
+                    });
+
+                    html += '</tbody></table>';
+                    document.getElementById('filesContainer').innerHTML = html;
+                } else {
+                    document.getElementById('filesContainer').innerHTML = '<div class="empty-state"><div class="empty-state-icon">📁</div><p>Brak plików</p></div>';
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        // Rescan OCR
+        async function rescanOCR() {
+            if (!confirm('Skanowanie zajmie kilka minut. Kontynuować?')) return;
+
+            document.getElementById('rescanProgress').style.display = 'block';
+            document.getElementById('rescanText').textContent = 'Skanowanie w trakcie... Czekaj...';
+
+            try {
+                const response = await fetch('/api/rescan-ocr', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const data = await response.json();
+
+                document.getElementById('rescanProgress').style.display = 'none';
+
+                if (data.success) {
+                    showAlert(`✅ Skanowanie ukończone!\n📄 Stron: ${data.pages_scanned}\n📖 Ksiąg Wieczystych: ${data.kw_found}`, 'success');
+                    loadFiles();
+                    loadRegisters();
+                    loadStatistics();
+                } else {
+                    showAlert(`❌ ${data.error}`, 'error');
+                }
+            } catch (error) {
+                document.getElementById('rescanProgress').style.display = 'none';
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        // Search
+        async function performSearch() {
+            const query = document.getElementById('searchInput').value.trim();
+
+            if (!query) {
+                showAlert('Wpisz szukaną frazę', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/search-all', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    if (data.data.length > 0) {
+                        let html = `<div style="margin-bottom: 20px; padding: 15px; background: #e3f2fd; border-radius: 6px;">
+                                    <strong>Znaleziono: ${data.count}</strong> wyników dla "${query}"
+                                  </div>
+                                  <table><thead><tr><th>Plik</th><th>Segregator</th><th>Strona</th><th>Kontekst</th></tr></thead><tbody>`;
+
+                        data.data.forEach(result => {
+                            const context = result.context.length > 100 ? result.context.substring(0, 100) + '...' : result.context;
+                            html += `<tr>
+                                <td><strong>${result.filename}</strong></td>
+                                <td>${result.binder}</td>
+                                <td><strong>${result.page}</strong></td>
+                                <td><em>"${context}"</em></td>
+                            </tr>`;
+                        });
+
+                        html += '</tbody></table>';
+                        document.getElementById('searchResults').innerHTML = html;
+                    } else {
+                        document.getElementById('searchResults').innerHTML = '<div class="empty-state"><p>Brak wyników dla "<strong>' + query + '</strong>"</p></div>';
+                    }
+                } else {
+                    showAlert(`Błąd: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        // Statistics
+        async function loadStatistics() {
+            try {
+                const response = await fetch('/api/statistics');
+                const data = await response.json();
+
+                if (data.success) {
+                    const stats = data.data;
+                    document.getElementById('statsContainer').innerHTML = `
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.binders}</div>
+                            <div class="stat-label">Segregatory</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.files}</div>
+                            <div class="stat-label">Pliki PDF</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.pages}</div>
+                            <div class="stat-label">Strony</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${stats.land_registers}</div>
+                            <div class="stat-label">Księgi Wieczyste</div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        // Edit owner
+        function openEditModal(kwId, owner) {
+            currentKWId = kwId;
+            document.getElementById('ownerInput').value = owner === '—' ? '' : owner;
+            document.getElementById('editModal').classList.add('active');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('active');
+        }
+
+        async function saveOwner() {
+            const owner = document.getElementById('ownerInput').value.trim();
+
+            try {
+                const response = await fetch('/api/update-owner', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ kw_id: currentKWId, owner })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showAlert('✅ Zapisano', 'success');
+                    closeEditModal();
+                    loadRegisters();
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        // Delete KW
+        async function deleteKW(kwId) {
+            if (!confirm('Na pewno usunąć?')) return;
+
+            try {
+                const response = await fetch('/api/delete-kw', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ kw_id: kwId })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showAlert('✅ Usunięto', 'success');
+                    loadRegisters();
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        // Add KW manually
+        async function addKWManual() {
+            const kw_full = document.getElementById('kwInput').value.trim();
+            const address = document.getElementById('addressInput').value.trim();
+            const owner = document.getElementById('ownerInputManual').value.trim();
+
+            if (!kw_full) {
+                showAlert('Wpisz numer KW', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/add-kw', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ kw_full, address, owner })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    showAlert(`✅ Dodano: ${data.kw_full}`, 'success');
+                    document.getElementById('kwInput').value = '';
+                    document.getElementById('addressInput').value = '';
+                    document.getElementById('ownerInputManual').value = '';
+                    loadRegisters();
+                } else {
+                    showAlert(`❌ ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        // Export Excel
+        async function exportToExcel() {
+            try {
+                window.location.href = '/api/export-excel';
+                showAlert('✅ Pobieranie pliku...', 'success');
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        // Alert
+        function showAlert(message, type = 'info') {
+            const alert = document.getElementById('alert');
+            alert.textContent = message;
+            alert.className = `alert ${type} active`;
+            setTimeout(() => alert.classList.remove('active'), 5000);
+        }
+
+        // PDF Viewer Functions
+        async function openPDFViewer(filename, fileId) {
+            currentFilePath = fileId;
+            currentPage = 1;
+
+            document.getElementById('pdfTitle').textContent = `📄 ${filename}`;
+            document.getElementById('pdfModal').classList.add('active');
+
+            try {
+                const response = await fetch(`/api/file/${fileId}`);
+                if (!response.ok) throw new Error('Cannot load PDF');
+
+                const arrayBuffer = await response.arrayBuffer();
+                pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+                document.getElementById('pdfPageTotal').textContent = pdfDoc.numPages;
+                renderPDFPage(1);
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+                closePDFModal();
+            }
+        }
+
+        async function renderPDFPage(pageNum) {
+            if (!pdfDoc) return;
+
+            try {
+                const page = await pdfDoc.getPage(pageNum);
+                const viewer = document.getElementById('pdfViewer');
+
+                // Skaluj do szerokości kontenera
+                const containerWidth = viewer.offsetWidth;
+                const pageWidth = page.getViewport({ scale: 1 }).width;
+                const scale = containerWidth / pageWidth;
+
+                const viewport = page.getViewport({ scale: scale });
+
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                await page.render({
+                    canvasContext: context,
+                    viewport: viewport
+                }).promise;
+
+                viewer.innerHTML = '';
+                viewer.style.display = 'flex';
+                viewer.style.justifyContent = 'center';
+                viewer.style.alignItems = 'flex-start';
+                viewer.appendChild(canvas);
+
+                document.getElementById('pdfPageNum').textContent = pageNum;
+                currentPage = pageNum;
+            } catch (error) {
+                showAlert(`Błąd renderowania: ${error.message}`, 'error');
+            }
+        }
+
+        function nextPDFPage() {
+            if (pdfDoc && currentPage < pdfDoc.numPages) {
+                renderPDFPage(currentPage + 1);
+            }
+        }
+
+        function previousPDFPage() {
+            if (currentPage > 1) {
+                renderPDFPage(currentPage - 1);
+            }
+        }
+
+        function closePDFModal() {
+            document.getElementById('pdfModal').classList.remove('active');
+            pdfDoc = null;
+            currentPage = 1;
+        }
+
+        // Edit page text
+        let currentPageId = null;
+
+        async function editPDFPageText() {
+            if (!pdfDoc) {
+                showAlert('Otwórz PDF aby edytować', 'error');
+                return;
+            }
+
+            // Pobierz ID strony z bazy (przybliżenie - używamy currentPage)
+            // W realnym scenariuszu mielibyśmy ID strony
+            showAlert('Funkcja edycji tekstu - wymagane powiązanie strony z ID', 'info');
+        }
+
+        function closeEditTextModal() {
+            document.getElementById('editTextModal').classList.remove('active');
+            currentPageId = null;
+        }
+
+        async function savePageText() {
+            if (!currentPageId) {
+                showAlert('Brak ID strony', 'error');
+                return;
+            }
+
+            const correctedText = document.getElementById('pageTextArea').value;
+
+            try {
+                const response = await fetch('/api/correct-page-text', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        page_id: currentPageId,
+                        text: correctedText
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert('✅ Tekst zaktualizowany', 'success');
+                    closeEditTextModal();
+                    // Przeładuj PDF lub wyszukiwanie
+                } else {
+                    showAlert(`❌ ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        // Keyboard navigation for PDF
+        document.addEventListener('keydown', (e) => {
+            if (document.getElementById('pdfModal').classList.contains('active')) {
+                if (e.key === 'ArrowLeft') previousPDFPage();
+                if (e.key === 'ArrowRight') nextPDFPage();
+                if (e.key === 'Escape') closePDFModal();
+            }
+        });
+
+        // Dictionary Functions
+        async function loadDictionary() {
+            try {
+                const response = await fetch('/api/user-dictionary');
+                const data = await response.json();
+
+                if (data.success && data.data.length > 0) {
+                    let html = '<table><thead><tr><th>Błędne</th><th>Poprawne</th><th>Akcja</th></tr></thead><tbody>';
+
+                    data.data.forEach(word => {
+                        html += `<tr>
+                            <td><strong>${word.original}</strong></td>
+                            <td>${word.replacement}</td>
+                            <td><button class="btn-small btn-delete" onclick="deleteDictionaryWord(${word.id})">Usuń</button></td>
+                        </tr>`;
+                    });
+
+                    html += '</tbody></table>';
+                    document.getElementById('dictionaryContainer').innerHTML = html;
+                } else {
+                    document.getElementById('dictionaryContainer').innerHTML = '<div class="empty-state"><div class="empty-state-icon">📚</div><p>Brak słów w słowniku</p></div>';
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        async function addDictionaryWord() {
+            const original = document.getElementById('dictOriginal').value.trim();
+            const replacement = document.getElementById('dictReplacement').value.trim();
+
+            if (!original || !replacement) {
+                showAlert('Wypełnij oba pola', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/add-dictionary-word', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ original, replacement })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert(`✅ Dodano: ${original} → ${replacement}`, 'success');
+                    document.getElementById('dictOriginal').value = '';
+                    document.getElementById('dictReplacement').value = '';
+                    loadDictionary();
+                } else {
+                    showAlert(`❌ ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        async function deleteDictionaryWord(wordId) {
+            if (!confirm('Usunąć to słowo?')) return;
+
+            try {
+                const response = await fetch('/api/delete-dictionary-word', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ word_id: wordId })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert('✅ Usunięto', 'success');
+                    loadDictionary();
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        // Reports Functions
+        async function loadReportKW() {
+            try {
+                const response = await fetch('/api/report-kw');
+                const data = await response.json();
+
+                if (data.success && data.data.length > 0) {
+                    let html = `<div style="margin-bottom: 20px; padding: 15px; background: #e3f2fd; border-radius: 6px;">
+                        <strong>Raport Ksiąg Wieczystych</strong> - ${data.data.length} wpisów
+                    </div>
+                    <table><thead><tr><th>KW</th><th>Okręg</th><th>Adres</th><th>Właściciel</th><th>Pliki</th><th>Strony</th></tr></thead><tbody>`;
+
+                    data.data.forEach(kw => {
+                        html += `<tr>
+                            <td class="kw-cell">${kw.kw}</td>
+                            <td>${kw.district}</td>
+                            <td>${kw.address}</td>
+                            <td>${kw.owner}</td>
+                            <td>${kw.files}</td>
+                            <td>${kw.pages}</td>
+                        </tr>`;
+                    });
+
+                    html += '</tbody></table>';
+                    document.getElementById('reportsContainer').innerHTML = html;
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadReportCoverage() {
+            try {
+                const response = await fetch('/api/report-coverage');
+                const data = await response.json();
+
+                if (data.success) {
+                    const d = data.data;
+                    let html = `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <div class="stat-card">
+                            <div class="stat-value">${d.total_pages}</div>
+                            <div class="stat-label">Łączna liczba stron</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${d.indexed_pages}</div>
+                            <div class="stat-label">Zindeksowanych stron</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${d.coverage_percent}%</div>
+                            <div class="stat-label">Pokrycie</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${d.total_files}</div>
+                            <div class="stat-label">Plików PDF</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${d.total_kw}</div>
+                            <div class="stat-label">Ksiąg Wieczystych</div>
+                        </div>
+                    </div>`;
+                    document.getElementById('reportsContainer').innerHTML = html;
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        async function exportAllExcel() {
+            try {
+                window.location.href = '/api/export-all-excel';
+                showAlert('✅ Pobieranie pełnego raportu Excel...', 'success');
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        async function createBackup() {
+            if (!confirm('Utworzyć backup bazy danych?')) return;
+
+            try {
+                const response = await fetch('/api/backup', { method: 'POST' });
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert(`✅ Backup utworzony!\nPlik: ${data.backup_file}\nRozmiar: ${data.size_mb} MB`, 'success');
+                } else {
+                    showAlert(`❌ ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        async function exportReportsCSV() {
+            try {
+                const response = await fetch('/api/report-kw');
+                const data = await response.json();
+
+                if (data.success && data.data.length > 0) {
+                    let csv = 'KW,Okręg,Adres,Właściciel,Pliki,Strony\n';
+                    data.data.forEach(kw => {
+                        csv += `"${kw.kw}","${kw.district}","${kw.address}","${kw.owner}",${kw.files},${kw.pages}\n`;
+                    });
+
+                    const blob = new Blob([csv], { type: 'text/csv' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'raport_kw.csv';
+                    a.click();
+                    showAlert('✅ Eksport CSV zakończony', 'success');
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        // ENTITIES FUNCTIONS
+        async function extractEntities() {
+            if (!confirm('Rozpozna encje we wszystkich dokumentach. Może potrwać kilka minut. Kontynuować?')) return;
+
+            showAlert('🔄 Rozpoznawanie encji w trakcie...', 'info');
+
+            try {
+                const response = await fetch('/api/extract-entities', { method: 'POST' });
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert(`✅ Rozpoznano: ${Object.values(data.data).reduce((a,b)=>a+b,0)} encji w ${data.pages_processed} stronach`, 'success');
+                    loadEntityStats();
+                } else {
+                    showAlert(`❌ ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadEntityStats() {
+            try {
+                const response = await fetch('/api/entity-stats');
+                const data = await response.json();
+
+                if (data.success && Object.keys(data.data).length > 0) {
+                    const entityLabels = {
+                        person: '👤 Osoby',
+                        company: '🏢 Firmy',
+                        institution: '🏛️ Instytucje',
+                        nip: '📊 NIP',
+                        regon: '📋 REGON',
+                        krs: '📑 KRS',
+                        pesel: '🆔 PESEL',
+                        phone: '📱 Telefony',
+                        email: '📧 Emaile',
+                        signature: '⚖️ Sygnatury'
+                    };
+
+                    let html = '<div class="stats">';
+                    for (const [type, count] of Object.entries(data.data)) {
+                        const label = entityLabels[type] || type;
+                        html += `<div class="stat-card">
+                            <div class="stat-value">${count}</div>
+                            <div class="stat-label">${label}</div>
+                        </div>`;
+                    }
+                    html += '</div>';
+                    document.getElementById('entityStatsContainer').innerHTML = html;
+                }
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        async function loadEntities(type) {
+            try {
+                const response = await fetch(`/api/entities/${type}`);
+                const data = await response.json();
+
+                if (data.success && data.data.length > 0) {
+                    const labels = {
+                        person: 'Osoby', company: 'Firmy', institution: 'Instytucje',
+                        nip: 'NIP', regon: 'REGON', krs: 'KRS', pesel: 'PESEL',
+                        phone: 'Telefony', email: 'Emaile', signature: 'Sygnatury'
+                    };
+
+                    let html = `<div style="margin-bottom: 15px; padding: 15px; background: #e3f2fd; border-radius: 6px;">
+                        <strong>${labels[type] || type}:</strong> ${data.count} znalezionych
+                    </div>
+                    <table><thead><tr><th>Wartość</th><th>Wystąpienia</th><th>Pliki</th><th>Akcja</th></tr></thead><tbody>`;
+
+                    data.data.forEach(e => {
+                        html += `<tr>
+                            <td><strong>${e.value}</strong></td>
+                            <td>${e.occurrences}</td>
+                            <td>${e.files}</td>
+                            <td><button class="btn-small btn-edit" onclick="searchEntity('${e.value.replace(/'/g, "\\'")}')">🔍 Szukaj</button></td>
+                        </tr>`;
+                    });
+
+                    html += '</tbody></table>';
+                    document.getElementById('entitiesContainer').innerHTML = html;
+                } else {
+                    document.getElementById('entitiesContainer').innerHTML = '<div class="empty-state"><p>Brak encji tego typu</p></div>';
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        function searchEntity(value) {
+            switchTabByName('search');
+            document.getElementById('searchInput').value = value;
+            performSearch();
+        }
+
+        function switchTabByName(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabName).classList.add('active');
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                if (btn.textContent.toLowerCase().includes(tabName.toLowerCase())) {
+                    btn.classList.add('active');
+                }
+            });
+        }
+
+        // TAGS FUNCTIONS
+        async function autoTagDocuments() {
+            if (!confirm('Auto-taguj wszystkie dokumenty? Może potrwać kilka minut.')) return;
+
+            showAlert('🔄 Auto-tagowanie w trakcie...', 'info');
+
+            try {
+                const response = await fetch('/api/auto-tag-documents', { method: 'POST' });
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert(`✅ Otagowano: ${data.files_processed} plików, dodano ${data.tags_added} tagów`, 'success');
+                    loadDocumentTags();
+                } else {
+                    showAlert(`❌ ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadDocumentTags() {
+            try {
+                const response = await fetch('/api/document-tags');
+                const data = await response.json();
+
+                if (data.success && data.data.length > 0) {
+                    let html = '<table><thead><tr><th>Plik</th><th>Tagi</th><th>Pewność</th></tr></thead><tbody>';
+
+                    data.data.forEach(f => {
+                        const tagsHtml = f.tags.split(', ').map(t =>
+                            `<span style="display: inline-block; padding: 4px 8px; background: #667eea; color: white; border-radius: 12px; font-size: 11px; margin: 2px;">${t}</span>`
+                        ).join('');
+                        const confidence = Math.round((f.confidence || 0) * 100);
+                        html += `<tr>
+                            <td><strong>📄 ${f.filename}</strong></td>
+                            <td>${tagsHtml}</td>
+                            <td>${confidence}%</td>
+                        </tr>`;
+                    });
+
+                    html += '</tbody></table>';
+                    document.getElementById('tagsContainer').innerHTML = html;
+                } else {
+                    document.getElementById('tagsContainer').innerHTML = '<div class="empty-state"><div class="empty-state-icon">🏷️</div><p>Brak tagów - kliknij "Auto-Taguj"</p></div>';
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        // SMART SEARCH - z rankingiem priorytetów
+        async function performSmartSearch() {
+            const query = document.getElementById('searchInput').value.trim();
+
+            if (!query) {
+                showAlert('Wpisz szukaną frazę', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/smart-search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    if (data.data.length > 0) {
+                        let html = `<div style="margin-bottom: 20px; padding: 15px; background: #e3f2fd; border-radius: 6px;">
+                            <strong>🔍 Smart Search wyników: ${data.count}</strong><br>
+                            <small>Priorytet 1 (cała strona): ${data.priority_1_count} | Priorytet 2 (dokument): ${data.priority_2_count} | Priorytet 3 (częściowo): ${data.priority_3_count}</small>
+                        </div>`;
+
+                        const priorityColors = {1: '#28a745', 2: '#ff9800', 3: '#999'};
+                        const priorityLabels = {1: '⭐ Najwyższy', 2: '✨ Wysoki', 3: '○ Częściowy'};
+
+                        data.data.forEach(r => {
+                            html += `<div style="border-left: 4px solid ${priorityColors[r.priority]}; padding: 15px; margin-bottom: 10px; background: #fafafa; border-radius: 4px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                    <div><strong>📄 ${r.filename}</strong> | ${r.binder}</div>
+                                    <div style="color: ${priorityColors[r.priority]}; font-weight: bold;">${priorityLabels[r.priority]} (${r.score}/100)</div>
+                                </div>
+                                <div style="color: #666; font-size: 13px;">${r.why}</div>
+                                ${r.page ? `<div style="margin-top: 5px;">📑 Strona: <strong>${r.page}</strong></div>` : ''}
+                                ${r.pages ? `<div style="margin-top: 5px;">📑 Strony: ${r.pages.join(', ')}</div>` : ''}
+                                ${r.context ? `<div style="margin-top: 5px; font-style: italic; color: #888;">"${r.context}"</div>` : ''}
+                                <div style="margin-top: 8px;">${r.phrases_found.map(p => `<span style="display: inline-block; padding: 2px 8px; background: #667eea; color: white; border-radius: 8px; font-size: 11px; margin: 2px;">${p}</span>`).join('')}</div>
+                            </div>`;
+                        });
+
+                        document.getElementById('searchResults').innerHTML = html;
+                    } else {
+                        document.getElementById('searchResults').innerHTML = '<div class="empty-state"><p>Brak wyników</p></div>';
+                    }
+                } else {
+                    showAlert(`Błąd: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        // RELATIONS FUNCTIONS
+        async function findRelations() {
+            const entityInput = document.getElementById('relationEntityInput').value.trim();
+            const relationTypeFilter = document.getElementById('relationTypeFilter').value;
+
+            if (!entityInput) {
+                showAlert('Wpisz encję do wyszukania', 'error');
+                return;
+            }
+
+            showAlert('🔄 Szukam relacji...', 'info');
+
+            try {
+                const response = await fetch(`/api/entity-relations/${relationTypeFilter || 'person'}/${encodeURIComponent(entityInput)}`);
+                const data = await response.json();
+
+                if (data.success && data.data && data.data.length > 0) {
+                    document.getElementById('relationsEmpty').style.display = 'none';
+                    document.getElementById('relationsResult').style.display = 'block';
+                    document.getElementById('relationsEntityName').innerHTML = `🔗 Powiązania dla: <strong>${data.entity.value}</strong> (${data.entity.type})`;
+
+                    const html = `
+                        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                            <thead>
+                                <tr style="background: #f0f0f0; border-bottom: 2px solid #ddd;">
+                                    <th style="padding: 10px; text-align: left;">Encja</th>
+                                    <th style="padding: 10px; text-align: center;">Typ</th>
+                                    <th style="padding: 10px; text-align: center;">Siła</th>
+                                    <th style="padding: 10px; text-align: center;">Strony</th>
+                                    <th style="padding: 10px; text-align: center;">Dokumenty</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.data.map((r, i) => `
+                                    <tr style="border-bottom: 1px solid #eee; ${i % 2 ? 'background: #fafafa;' : ''}">
+                                        <td style="padding: 10px;"><strong>${r.value}</strong></td>
+                                        <td style="padding: 10px; text-align: center; color: #666;">${r.type}</td>
+                                        <td style="padding: 10px; text-align: center; color: #667eea; font-weight: bold;">${r.strength}</td>
+                                        <td style="padding: 10px; text-align: center;">${r.pages}</td>
+                                        <td style="padding: 10px; text-align: center;">${r.files}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+
+                    document.getElementById('relationsTable').innerHTML = html;
+                    showAlert(`✅ Znaleziono ${data.count} powiązań`, 'success');
+                } else {
+                    document.getElementById('relationsResult').style.display = 'none';
+                    document.getElementById('relationsEmpty').style.display = 'block';
+                    showAlert('Brak powiązań dla tej encji', 'info');
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        // BULK OPERATIONS FUNCTIONS
+        function logOperation(type, message, status = 'info') {
+            const log = document.getElementById('operationsLog');
+            const timestamp = new Date().toLocaleTimeString('pl-PL');
+            const icons = {
+                import: '📤',
+                ocr: '🔄',
+                cooc: '🔗',
+                tag: '🏷️',
+                entity: '👥'
+            };
+            const color = status === 'success' ? '#28a745' : status === 'error' ? '#dc3545' : '#667eea';
+
+            log.innerHTML = `<div style="padding: 8px; border-bottom: 1px solid #ddd; color: ${color};"><strong>${timestamp}</strong> ${icons[type]} ${message}</div>` + log.innerHTML;
+        }
+
+        async function buildCooccurrences() {
+            if (!confirm('Analizować relacje między encjami? Może potrwać kilka minut.')) return;
+
+            showAlert('🔄 Budowanie indeksu współwystąpień...', 'info');
+            document.getElementById('cooc-progress').style.display = 'block';
+            document.getElementById('cooc-status').innerText = 'W trakcie...';
+
+            try {
+                const response = await fetch('/api/build-cooccurrences', { method: 'POST' });
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert(`✅ Zbudowano indeks: ${data.cooccurrences_built} powiązań w ${data.pages_analyzed} stronach`, 'success');
+                    logOperation('cooc', `Zbudowano indeks: ${data.cooccurrences_built} powiązań`, 'success');
+                    document.getElementById('cooc-status').innerText = 'Gotowy ✓';
+                } else {
+                    showAlert(`❌ ${data.error}`, 'error');
+                    logOperation('cooc', `Błąd: ${data.error}`, 'error');
+                    document.getElementById('cooc-status').innerText = 'Błąd';
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+                logOperation('cooc', `Błąd: ${error.message}`, 'error');
+                document.getElementById('cooc-status').innerText = 'Błąd';
+            } finally {
+                document.getElementById('cooc-progress').style.display = 'none';
+            }
+        }
+
+        async function autoTagDocuments() {
+            if (!confirm('Klasyfikować wszystkie dokumenty automatycznie? Może potrwać kilka minut.')) return;
+
+            showAlert('🔄 Tagowanie dokumentów...', 'info');
+            document.getElementById('tag-progress').style.display = 'block';
+            document.getElementById('tag-status').innerText = 'W trakcie...';
+
+            try {
+                const response = await fetch('/api/auto-tag-documents', { method: 'POST' });
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert(`✅ Otagowano: ${data.tags_added} tagów w ${data.files_processed} dokumentach`, 'success');
+                    logOperation('tag', `Otagowano ${data.files_processed} dokumentów`, 'success');
+                    document.getElementById('tag-status').innerText = 'Gotowy ✓';
+                } else {
+                    showAlert(`❌ ${data.error}`, 'error');
+                    logOperation('tag', `Błąd: ${data.error}`, 'error');
+                    document.getElementById('tag-status').innerText = 'Błąd';
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+                logOperation('tag', `Błąd: ${error.message}`, 'error');
+                document.getElementById('tag-status').innerText = 'Błąd';
+            } finally {
+                document.getElementById('tag-progress').style.display = 'none';
+            }
+        }
+
+        // Load on start
+        document.addEventListener('DOMContentLoaded', loadStatistics);
+    </script>
+</body>
+</html>
