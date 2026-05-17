@@ -112,6 +112,7 @@ class DatabaseManager:
             entity_type TEXT,
             entity_value TEXT NOT NULL,
             normalized_value TEXT,
+            validated INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(entity_type, normalized_value)
         );

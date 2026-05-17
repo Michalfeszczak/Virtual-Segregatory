@@ -897,6 +897,263 @@ def find_related():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/extracted-names', methods=['GET'])
+def get_extracted_names():
+    """Pobierz wszystkie wyciagniete imiona/nazwiska z walidacja"""
+    try:
+        db = DatabaseManager(CONFIG['db_path'])
+        db.connect()
+
+        # Pobierz wszystkie osoby z dokumentów + meta
+        persons = db.fetch_all("""
+            SELECT
+                e.id,
+                e.entity_value,
+                e.validated,
+                COUNT(DISTINCT eo.page_id) as occurrences,
+                COUNT(DISTINCT eo.file_id) as files_count
+            FROM entities e
+            LEFT JOIN entity_occurrences eo ON e.id = eo.entity_id
+            WHERE e.entity_type = 'person'
+            GROUP BY e.id
+            ORDER BY occurrences DESC, e.entity_value
+            LIMIT 1000
+        """)
+
+        db.disconnect()
+
+        # Imiona ze słownika
+        extractor = EntityExtractor()
+        all_names = extractor.POLISH_NAMES_MALE | extractor.POLISH_NAMES_FEMALE
+        all_surnames = extractor.POLISH_SURNAMES
+
+        result = []
+        for p in persons:
+            parts = p['entity_value'].split(' ', 1)
+            first = parts[0] if parts else ''
+            last = parts[1] if len(parts) > 1 else ''
+
+            in_first_dict = first in all_names
+            in_surname_dict = last in all_surnames or extractor._is_surname_form(last)
+
+            # Status walidacji
+            if p['validated'] == 1:
+                status = 'valid'
+            elif p['validated'] == -1:
+                status = 'invalid'
+            elif in_first_dict and in_surname_dict:
+                status = 'likely_valid'
+            elif in_first_dict:
+                status = 'partial'
+            else:
+                status = 'unknown'
+
+            result.append({
+                'id': p['id'],
+                'value': p['entity_value'],
+                'first_name': first,
+                'last_name': last,
+                'occurrences': p['occurrences'],
+                'files': p['files_count'],
+                'in_dict': in_first_dict,
+                'in_surname_dict': in_surname_dict,
+                'status': status,
+                'validated': p['validated'] or 0
+            })
+
+        return jsonify({'success': True, 'data': result, 'count': len(result)})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/validate-name', methods=['POST'])
+def validate_name():
+    """Oznacz nazwisko jako poprawne lub niepoprawne"""
+    try:
+        entity_id = request.json.get('entity_id')
+        action = request.json.get('action', 'valid')  # valid, invalid, delete
+
+        db = DatabaseManager(CONFIG['db_path'])
+        db.connect()
+
+        if action == 'delete':
+            # Usuń całkowicie
+            db.execute("DELETE FROM entity_occurrences WHERE entity_id = ?", (entity_id,))
+            db.execute("DELETE FROM cooccurrences WHERE entity_id_1 = ? OR entity_id_2 = ?",
+                       (entity_id, entity_id))
+            db.execute("DELETE FROM entities WHERE id = ?", (entity_id,))
+            db.disconnect()
+            return jsonify({'success': True, 'action': 'deleted'})
+
+        # Set validated flag
+        validated_val = 1 if action == 'valid' else -1
+        db.execute("UPDATE entities SET validated = ? WHERE id = ?", (validated_val, entity_id))
+
+        db.disconnect()
+
+        return jsonify({'success': True, 'action': action})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/edit-entity', methods=['POST'])
+def edit_entity():
+    """Edytuj wartość encji i propaguj do OCR wszystkich stron"""
+    try:
+        entity_id = request.json.get('entity_id')
+        new_value = request.json.get('new_value', '').strip()
+
+        if not new_value:
+            return jsonify({'error': 'Podaj nową wartość'}), 400
+
+        db = DatabaseManager(CONFIG['db_path'])
+        db.connect()
+
+        # Pobierz starą wartość
+        entity = db.fetch_one("SELECT entity_value, entity_type FROM entities WHERE id = ?", (entity_id,))
+        if not entity:
+            db.disconnect()
+            return jsonify({'error': 'Nie znaleziono encji'}), 404
+
+        old_value = entity['entity_value']
+
+        # Aktualizuj encje
+        db.execute(
+            "UPDATE entities SET entity_value = ?, normalized_value = ?, validated = 1 WHERE id = ?",
+            (new_value, new_value.upper(), entity_id)
+        )
+
+        # Propaguj do OCR - zaktualizuj wszystkie strony gdzie ta encja wystepowala
+        pages_updated = 0
+        page_ids = db.fetch_all(
+            "SELECT DISTINCT page_id FROM entity_occurrences WHERE entity_id = ?",
+            (entity_id,)
+        )
+
+        for pid_row in page_ids:
+            pid = pid_row['page_id']
+            page = db.fetch_one("SELECT text_content FROM pages WHERE id = ?", (pid,))
+            if page and page['text_content'] and old_value in page['text_content']:
+                new_text = page['text_content'].replace(old_value, new_value)
+                db.execute("UPDATE pages SET text_content = ? WHERE id = ?", (new_text, pid))
+                # Zapisz korekte
+                db.execute("""
+                    INSERT INTO ocr_corrections (page_id, original_text, corrected_text)
+                    VALUES (?, ?, ?)
+                """, (pid, old_value, new_value))
+                pages_updated += 1
+
+        # Zapamietaj korekte w user_dictionary aby nie pytac ponownie
+        db.execute("""
+            INSERT OR IGNORE INTO user_dictionaries (original, replacement)
+            VALUES (?, ?)
+        """, (old_value, new_value))
+
+        db.disconnect()
+
+        return jsonify({
+            'success': True,
+            'old_value': old_value,
+            'new_value': new_value,
+            'pages_updated': pages_updated
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/delete-file', methods=['POST'])
+def delete_file():
+    """Usun dokument z bazy (i opcjonalnie plik z dysku)"""
+    try:
+        file_id = request.json.get('file_id')
+        hard_delete = request.json.get('hard_delete', False)
+
+        db = DatabaseManager(CONFIG['db_path'])
+        db.connect()
+
+        file_info = db.fetch_one("SELECT filepath, filename FROM source_files WHERE id = ?", (file_id,))
+        if not file_info:
+            db.disconnect()
+            return jsonify({'error': 'Nie znaleziono pliku'}), 404
+
+        # Usun wszystkie powiazane dane
+        # Pobierz page IDs
+        page_ids = [row['id'] for row in db.fetch_all("SELECT id FROM pages WHERE file_id = ?", (file_id,))]
+
+        if page_ids:
+            placeholders = ','.join('?' * len(page_ids))
+            db.execute(f"DELETE FROM entity_occurrences WHERE page_id IN ({placeholders})", tuple(page_ids))
+            db.execute(f"DELETE FROM cooccurrences WHERE page_id IN ({placeholders})", tuple(page_ids))
+            db.execute(f"DELETE FROM ocr_corrections WHERE page_id IN ({placeholders})", tuple(page_ids))
+            db.execute(f"DELETE FROM land_register_occurrences WHERE page_id IN ({placeholders})", tuple(page_ids))
+
+        db.execute("DELETE FROM entity_occurrences WHERE file_id = ?", (file_id,))
+        db.execute("DELETE FROM land_register_occurrences WHERE file_id = ?", (file_id,))
+        db.execute("DELETE FROM document_tags WHERE file_id = ?", (file_id,))
+        db.execute("DELETE FROM pages WHERE file_id = ?", (file_id,))
+        db.execute("DELETE FROM source_files WHERE id = ?", (file_id,))
+
+        db.disconnect()
+
+        # Hard delete - usun plik z dysku
+        if hard_delete and file_info['filepath']:
+            try:
+                Path(file_info['filepath']).unlink(missing_ok=True)
+            except:
+                pass
+
+        return jsonify({'success': True, 'filename': file_info['filename']})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/person-documents/<int:entity_id>', methods=['GET'])
+def get_person_documents(entity_id):
+    """Pobierz wszystkie dokumenty gdzie osoba wystepuje"""
+    try:
+        db = DatabaseManager(CONFIG['db_path'])
+        db.connect()
+
+        entity = db.fetch_one("SELECT entity_value, entity_type FROM entities WHERE id = ?", (entity_id,))
+        if not entity:
+            db.disconnect()
+            return jsonify({'error': 'Nie znaleziono'}), 404
+
+        documents = db.fetch_all("""
+            SELECT DISTINCT
+                f.id, f.filename, b.name as binder,
+                COUNT(DISTINCT eo.page_id) as pages_count,
+                GROUP_CONCAT(DISTINCT eo.page_id) as page_ids
+            FROM entity_occurrences eo
+            LEFT JOIN source_files f ON eo.file_id = f.id
+            LEFT JOIN binders b ON f.binder_id = b.id
+            WHERE eo.entity_id = ?
+            GROUP BY f.id
+            ORDER BY pages_count DESC
+        """, (entity_id,))
+
+        db.disconnect()
+
+        return jsonify({
+            'success': True,
+            'entity': entity['entity_value'],
+            'data': [{
+                'file_id': d['id'],
+                'filename': d['filename'],
+                'binder': d['binder'],
+                'pages_count': d['pages_count']
+            } for d in documents],
+            'count': len(documents)
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/entity-relations/<entity_type>/<entity_value>', methods=['GET'])
 def get_entity_relations(entity_type, entity_value):
     """Pobierz szczegółowe relacje encji z metadata"""

@@ -465,12 +465,19 @@
                 <button class="tab-button" onclick="switchTab('registers')">📖 Księgi</button>
                 <button class="tab-button" onclick="switchTab('search')">🔍 Szukaj</button>
                 <button class="tab-button" onclick="switchTab('entities')">👥 Encje</button>
+                <button class="tab-button" onclick="switchTab('validation')">✅ Weryfikacja</button>
+                <button class="tab-button" onclick="switchTab('groups')">👤 Grupy</button>
                 <button class="tab-button" onclick="switchTab('relations')">🔗 Relacje</button>
                 <button class="tab-button" onclick="switchTab('tags')">🏷️ Tagi</button>
                 <button class="tab-button" onclick="switchTab('dictionary')">📚 Słownik</button>
                 <button class="tab-button" onclick="switchTab('bulk-ops')">⚙️ Operacje</button>
                 <button class="tab-button" onclick="switchTab('reports')">📊 Raporty</button>
                 <button class="tab-button" onclick="switchTab('statistics')">📈 Stats</button>
+            </div>
+            <!-- BACKGROUND STATUS INDICATOR -->
+            <div id="bgStatus" style="display: none; margin-top: 10px; padding: 8px 12px; background: #fff3cd; border-left: 4px solid #ff9800; border-radius: 4px; font-size: 12px;">
+                <span class="loading" style="display: inline-block; margin-right: 8px;"></span>
+                <span id="bgStatusText">Operacja w tle...</span>
             </div>
         </header>
 
@@ -680,6 +687,50 @@
                     <div class="empty-state">
                         <div class="empty-state-icon">📊</div>
                         <p>Kliknij przycisk aby wygenerować raport</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VALIDATION TAB - Weryfikacja Nazwisk -->
+            <div id="validation" class="tab-content">
+                <h2 style="margin-bottom: 10px;">✅ Weryfikacja Imion i Nazwisk</h2>
+                <p style="color: #666; margin-bottom: 20px; font-size: 13px;">
+                    Sprawdź wyciągnięte nazwiska. Zatwierdź ✓ lub odrzuć ✗ - decyzja zapisuje się automatycznie.
+                    Edycja propaguje poprawkę do całego OCR i pamięta na przyszłość.
+                </p>
+
+                <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                    <button onclick="loadExtractedNames('all')" style="background: #667eea;">Wszystkie</button>
+                    <button onclick="loadExtractedNames('unknown')" style="background: #6c757d;">❓ Nieznane</button>
+                    <button onclick="loadExtractedNames('partial')" style="background: #ff9800;">⚠️ Częściowe</button>
+                    <button onclick="loadExtractedNames('likely_valid')" style="background: #17a2b8;">📋 Prawdopodobne</button>
+                    <button onclick="loadExtractedNames('valid')" style="background: #28a745;">✓ Zatwierdzone</button>
+                    <button onclick="loadExtractedNames('invalid')" style="background: #dc3545;">✗ Odrzucone</button>
+                </div>
+
+                <div id="validationContainer">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">✅</div>
+                        <p>Kliknij filtr aby załadować nazwiska</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GROUPS TAB - Grupowanie dokumentów po osobach -->
+            <div id="groups" class="tab-content">
+                <h2 style="margin-bottom: 10px;">👤 Grupy - Dokumenty per Osoba</h2>
+                <p style="color: #666; margin-bottom: 20px; font-size: 13px;">
+                    Kliknij osobę aby zobaczyć wszystkie jej dokumenty.
+                </p>
+
+                <input type="text" id="groupSearchInput" placeholder="Szukaj osobę..." oninput="filterGroups(this.value)" style="margin-bottom: 15px;">
+
+                <div id="groupsContainer" style="display: grid; grid-template-columns: 1fr 2fr; gap: 20px;">
+                    <div id="groupsList" style="max-height: 600px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 8px; padding: 10px;">
+                        <p style="color: #999;">Ładuję osoby...</p>
+                    </div>
+                    <div id="groupDetails" style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; background: #fafafa;">
+                        <p style="color: #999;">Wybierz osobę z listy</p>
                     </div>
                 </div>
             </div>
@@ -912,6 +963,8 @@
             if (tab === 'statistics') loadStatistics();
             if (tab === 'entities') loadEntityStats();
             if (tab === 'tags') loadDocumentTags();
+            if (tab === 'validation') loadExtractedNames('all');
+            if (tab === 'groups') loadGroups();
         }
 
         // File upload
@@ -1163,9 +1216,10 @@
                                     <div style="font-weight: bold; color: #333; font-size: 13px; word-break: break-word; margin-bottom: 4px;" title="${file.filename}">${file.filename.length > 25 ? file.filename.substring(0, 22) + '...' : file.filename}</div>
                                     <div style="color: #999; font-size: 11px; margin-bottom: 8px;">📁 ${file.binder} | ${file.pages} stron (${percent}%)</div>
                                     <div style="display: flex; gap: 4px;">
-                                        <button onclick="openPDFViewer('${safeFilename}', '${file.id}')" style="flex: 1; padding: 4px 6px; font-size: 11px;" title="Podgląd">👁️</button>
-                                        <button onclick="downloadFile('${file.id}')" style="flex: 1; padding: 4px 6px; font-size: 11px; background: #28a745;" title="Pobierz">⬇️</button>
-                                        <button onclick="quickEditFile('${file.id}', '${safeFilename}')" style="flex: 1; padding: 4px 6px; font-size: 11px; background: #ff9800;" title="Edytuj">✏️</button>
+                                        <button onclick="event.stopPropagation(); openPDFViewer('${safeFilename}', '${file.id}')" style="flex: 1; padding: 4px 6px; font-size: 11px;" title="Podgląd">👁️</button>
+                                        <button onclick="event.stopPropagation(); downloadFile('${file.id}')" style="flex: 1; padding: 4px 6px; font-size: 11px; background: #28a745;" title="Pobierz">⬇️</button>
+                                        <button onclick="event.stopPropagation(); quickEditFile('${file.id}', '${safeFilename}')" style="flex: 1; padding: 4px 6px; font-size: 11px; background: #ff9800;" title="Edytuj">✏️</button>
+                                        <button onclick="event.stopPropagation(); deleteFile('${file.id}', '${safeFilename}')" style="flex: 1; padding: 4px 6px; font-size: 11px; background: #dc3545;" title="Usuń">🗑️</button>
                                     </div>
                                 </div>
                             </div>
@@ -2316,6 +2370,272 @@
                 document.getElementById('tag-status').innerText = 'Błąd';
             } finally {
                 document.getElementById('tag-progress').style.display = 'none';
+            }
+        }
+
+        // BACKGROUND STATUS INDICATOR
+        let activeOperations = 0;
+        function showBgStatus(text) {
+            activeOperations++;
+            document.getElementById('bgStatusText').textContent = text;
+            document.getElementById('bgStatus').style.display = 'block';
+        }
+        function hideBgStatus() {
+            activeOperations = Math.max(0, activeOperations - 1);
+            if (activeOperations === 0) {
+                document.getElementById('bgStatus').style.display = 'none';
+            }
+        }
+
+        // VALIDATION FUNCTIONS - Weryfikacja Nazwisk
+        let allExtractedNames = [];
+
+        async function loadExtractedNames(filter = 'all') {
+            showBgStatus('Ładowanie nazwisk...');
+            try {
+                const response = await fetch('/api/extracted-names');
+                const data = await response.json();
+
+                if (data.success) {
+                    allExtractedNames = data.data;
+                    renderExtractedNames(filter);
+                } else {
+                    showAlert(`Błąd: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            } finally {
+                hideBgStatus();
+            }
+        }
+
+        function renderExtractedNames(filter) {
+            let filtered = allExtractedNames;
+            if (filter !== 'all') {
+                filtered = allExtractedNames.filter(n => n.status === filter);
+            }
+
+            if (filtered.length === 0) {
+                document.getElementById('validationContainer').innerHTML = '<div class="empty-state"><p>Brak nazwisk dla tego filtra</p></div>';
+                return;
+            }
+
+            const statusColors = {
+                valid: '#28a745',
+                invalid: '#dc3545',
+                likely_valid: '#17a2b8',
+                partial: '#ff9800',
+                unknown: '#6c757d'
+            };
+
+            const statusLabels = {
+                valid: '✓ Zatwierdzone',
+                invalid: '✗ Odrzucone',
+                likely_valid: '📋 Prawdopodobne',
+                partial: '⚠️ Częściowe (brak nazwiska w słowniku)',
+                unknown: '❓ Nieznane'
+            };
+
+            let html = `<div style="margin-bottom: 15px; color: #666; font-size: 13px;">Znaleziono: <strong>${filtered.length}</strong> nazwisk</div>`;
+            html += '<table><thead><tr><th>Imię i Nazwisko</th><th>Status</th><th>Wystąpienia</th><th>Pliki</th><th>Akcje</th></tr></thead><tbody>';
+
+            filtered.forEach(name => {
+                const color = statusColors[name.status] || '#666';
+                html += `
+                    <tr id="name-row-${name.id}">
+                        <td>
+                            <strong>${name.value}</strong>
+                            <div style="font-size: 11px; color: #888; margin-top: 2px;">
+                                ${name.in_dict ? '✓ imię' : '✗ imię'} |
+                                ${name.in_surname_dict ? '✓ nazwisko' : '✗ nazwisko'}
+                            </div>
+                        </td>
+                        <td><span style="background: ${color}20; color: ${color}; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">${statusLabels[name.status]}</span></td>
+                        <td>${name.occurrences}</td>
+                        <td>${name.files}</td>
+                        <td style="display: flex; gap: 4px;">
+                            <button onclick="validateName(${name.id}, 'valid')" style="background: #28a745; padding: 4px 8px; font-size: 11px;" title="Poprawne">✓</button>
+                            <button onclick="validateName(${name.id}, 'invalid')" style="background: #dc3545; padding: 4px 8px; font-size: 11px;" title="Niepoprawne (zostaw w bazie)">✗</button>
+                            <button onclick="editEntityName(${name.id}, '${name.value.replace(/'/g, "\\'")}')"  style="background: #ff9800; padding: 4px 8px; font-size: 11px;" title="Edytuj + propaguj do OCR">✏️</button>
+                            <button onclick="deleteEntity(${name.id})" style="background: #6c757d; padding: 4px 8px; font-size: 11px;" title="Usuń całkowicie">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            document.getElementById('validationContainer').innerHTML = html;
+        }
+
+        async function validateName(entityId, action) {
+            try {
+                const response = await fetch('/api/validate-name', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ entity_id: entityId, action: action })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert(`✅ Zapisano: ${action === 'valid' ? 'Poprawne' : 'Niepoprawne'}`, 'success');
+                    // Update lokalnie
+                    const name = allExtractedNames.find(n => n.id === entityId);
+                    if (name) name.status = action;
+                    loadExtractedNames();
+                } else {
+                    showAlert(`Błąd: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        async function editEntityName(entityId, currentValue) {
+            const newValue = prompt(`Edytuj wartość. Zmiana propaguje się do OCR wszystkich dokumentów:\n\nObecnie: ${currentValue}`, currentValue);
+            if (!newValue || newValue.trim() === currentValue) return;
+
+            showBgStatus('Aktualizuję OCR w dokumentach...');
+            try {
+                const response = await fetch('/api/edit-entity', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ entity_id: entityId, new_value: newValue.trim() })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert(`✅ Zapisano! Zaktualizowano OCR w ${data.pages_updated} stronach. Korekta zapamiętana.`, 'success');
+                    loadExtractedNames();
+                } else {
+                    showAlert(`Błąd: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            } finally {
+                hideBgStatus();
+            }
+        }
+
+        async function deleteEntity(entityId) {
+            if (!confirm('Usunąć tę encję całkowicie z bazy?')) return;
+            try {
+                const response = await fetch('/api/validate-name', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ entity_id: entityId, action: 'delete' })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showAlert('✅ Usunięto', 'success');
+                    loadExtractedNames();
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        // GROUPS - Dokumenty per Osoba
+        async function loadGroups() {
+            showBgStatus('Ładowanie osób...');
+            try {
+                const response = await fetch('/api/extracted-names');
+                const data = await response.json();
+
+                if (data.success) {
+                    const persons = data.data.sort((a, b) => b.occurrences - a.occurrences);
+                    renderGroupsList(persons);
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            } finally {
+                hideBgStatus();
+            }
+        }
+
+        let groupsCache = [];
+
+        function renderGroupsList(persons) {
+            groupsCache = persons;
+            if (persons.length === 0) {
+                document.getElementById('groupsList').innerHTML = '<p style="color: #999;">Brak osób</p>';
+                return;
+            }
+
+            let html = '';
+            persons.forEach(p => {
+                html += `
+                    <div onclick="showPersonDocuments(${p.id}, '${p.value.replace(/'/g, "\\'")}')" style="padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; transition: all 0.2s;" onmouseover="this.style.background='#f5f5f5';" onmouseout="this.style.background='';">
+                        <div style="font-weight: bold; font-size: 13px;">👤 ${p.value}</div>
+                        <div style="color: #888; font-size: 11px; margin-top: 2px;">${p.occurrences} wystąpień w ${p.files} dokumentach</div>
+                    </div>
+                `;
+            });
+            document.getElementById('groupsList').innerHTML = html;
+        }
+
+        function filterGroups(query) {
+            const filtered = groupsCache.filter(p => p.value.toLowerCase().includes(query.toLowerCase()));
+            renderGroupsList(filtered);
+        }
+
+        async function showPersonDocuments(entityId, personName) {
+            showBgStatus('Ładowanie dokumentów...');
+            try {
+                const response = await fetch(`/api/person-documents/${entityId}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    let html = `<h3 style="margin-bottom: 15px; color: #667eea;">👤 ${personName}</h3>`;
+                    html += `<p style="color: #666; font-size: 13px; margin-bottom: 15px;">Znaleziono w <strong>${data.count}</strong> dokumentach:</p>`;
+
+                    if (data.data.length === 0) {
+                        html += '<p style="color: #999;">Brak dokumentów</p>';
+                    } else {
+                        html += '<div style="display: grid; gap: 10px;">';
+                        data.data.forEach(doc => {
+                            html += `
+                                <div onclick="openPDFViewer('${doc.filename.replace(/'/g, "\\'")}', '${doc.file_id}')" style="padding: 12px; background: white; border: 1px solid #e0e0e0; border-radius: 6px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='#667eea'; this.style.transform='translateX(4px)';" onmouseout="this.style.borderColor='#e0e0e0'; this.style.transform='';">
+                                    <div style="font-weight: bold; font-size: 13px;">📄 ${doc.filename}</div>
+                                    <div style="color: #666; font-size: 11px; margin-top: 4px;">📁 ${doc.binder || 'Default'} | ${doc.pages_count} stron z osobą</div>
+                                </div>
+                            `;
+                        });
+                        html += '</div>';
+                    }
+
+                    document.getElementById('groupDetails').innerHTML = html;
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            } finally {
+                hideBgStatus();
+            }
+        }
+
+        // DELETE FILE
+        async function deleteFile(fileId, filename) {
+            if (!confirm(`Usunąć dokument "${filename}"?\n\nUsunięte zostaną: wszystkie strony, encje, tagi, relacje.\nPlik PDF pozostanie na dysku.`)) return;
+
+            showBgStatus('Usuwam dokument...');
+            try {
+                const response = await fetch('/api/delete-file', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ file_id: fileId, hard_delete: false })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert(`✅ Usunięto: ${data.filename}`, 'success');
+                    loadFiles();
+                    loadStatistics();
+                } else {
+                    showAlert(`Błąd: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showAlert(`Błąd: ${error.message}`, 'error');
+            } finally {
+                hideBgStatus();
             }
         }
 
