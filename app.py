@@ -1433,6 +1433,8 @@ def search_all():
                 context = text[:100]
 
             result_list.append({
+                'file_id': row['file_id'],
+                'page_id': row['page_id'],
                 'filename': row['filename'],
                 'page': row['page_number'],
                 'binder': row['binder_name'] or 'Unknown',

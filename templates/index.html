@@ -794,12 +794,14 @@
         </div>
     </div>
 
-    <!-- PDF Viewer Modal - PEŁNY EKRAN -->
+    <!-- PDF Viewer Modal - PEŁNY EKRAN + SPLIT VIEW EDIT -->
     <div id="pdfModal" class="modal">
-        <div style="width: 98%; height: 95vh; max-width: 1600px; background: white; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); display: flex; flex-direction: column;">
+        <div style="width: 98%; height: 95vh; max-width: 1800px; background: white; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); display: flex; flex-direction: column;">
+            <!-- HEADER -->
             <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; border-bottom: 1px solid #eee; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px 12px 0 0;">
                 <h3 id="pdfTitle" style="margin: 0; color: white; font-size: 16px;">PDF Viewer</h3>
                 <div style="display: flex; gap: 8px; align-items: center;">
+                    <button onclick="downloadCurrentFile()" style="background: rgba(255,255,255,0.2); color: white; padding: 6px 12px;">⬇️ Pobierz</button>
                     <button onclick="zoomOut()" style="background: rgba(255,255,255,0.2); color: white; padding: 6px 12px;">➖</button>
                     <span id="zoomLevel" style="color: white; font-size: 13px; min-width: 50px; text-align: center;">100%</span>
                     <button onclick="zoomIn()" style="background: rgba(255,255,255,0.2); color: white; padding: 6px 12px;">➕</button>
@@ -808,38 +810,54 @@
                 </div>
             </div>
 
-            <div id="pdfViewer" style="flex: 1; overflow: auto; padding: 20px; background: #f0f0f0; text-align: center;">
-                <div class="loading"></div>
+            <!-- BODY: PDF + (Edit Panel jeśli aktywny) -->
+            <div id="pdfBody" style="flex: 1; display: flex; overflow: hidden;">
+                <!-- PDF Viewer Column -->
+                <div id="pdfViewerColumn" style="flex: 1; display: flex; flex-direction: column; transition: flex 0.3s ease;">
+                    <div id="pdfViewer" style="flex: 1; overflow: auto; padding: 20px; background: #f0f0f0; text-align: center;">
+                        <div class="loading"></div>
+                    </div>
+                </div>
+
+                <!-- Edit Panel Column (hidden by default) -->
+                <div id="editPanel" style="flex: 0; overflow: hidden; transition: flex 0.3s ease; background: #fafafa; border-left: 2px solid #ff9800; display: flex; flex-direction: column;">
+                    <div style="padding: 12px 16px; background: linear-gradient(135deg, #ff9800 0%, #e65100 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
+                        <strong>✏️ Edycja strony <span id="editPageNumDisplay">1</span></strong>
+                        <div style="display: flex; gap: 6px;">
+                            <button onclick="toggleOCRView()" id="ocrViewToggle" style="background: rgba(255,255,255,0.2); color: white; padding: 4px 10px; font-size: 12px;">📄 Raw OCR</button>
+                            <button onclick="closeEditPanel()" style="background: rgba(255,255,255,0.2); color: white; padding: 4px 10px; font-size: 12px;">✕</button>
+                        </div>
+                    </div>
+                    <input type="hidden" id="editPageId" value="">
+
+                    <!-- RAW OCR Display (toggleable) -->
+                    <div id="rawOCRView" style="display: none; padding: 12px 16px; background: #2d2d2d; color: #d4d4d4; font-family: 'Courier New', monospace; font-size: 11px; line-height: 1.5; max-height: 200px; overflow-y: auto; border-bottom: 2px solid #444;">
+                        <div style="color: #999; margin-bottom: 6px; font-size: 10px;">📄 RAW OCR (co dokładnie odczytał OCR):</div>
+                        <pre id="rawOCRContent" style="white-space: pre-wrap; word-wrap: break-word;"></pre>
+                    </div>
+
+                    <!-- Editable Text Area -->
+                    <div style="flex: 1; padding: 12px 16px; display: flex; flex-direction: column;">
+                        <label style="font-size: 11px; color: #666; margin-bottom: 6px;">📝 Tekst edytowany (jak w Word):</label>
+                        <textarea id="editPageText" style="flex: 1; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-family: 'Segoe UI', Tahoma, sans-serif; font-size: 13px; line-height: 1.6; resize: none;"></textarea>
+                        <div style="display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end;">
+                            <button onclick="closeEditPanel()" style="background: #6c757d; padding: 8px 16px;">Anuluj</button>
+                            <button onclick="saveEditedPageText()" style="background: #28a745; padding: 8px 16px;">💾 Zapisz</button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
+            <!-- FOOTER CONTROLS -->
             <div class="pdf-controls" style="padding: 12px 20px; border-top: 1px solid #eee; background: white; border-radius: 0 0 12px 12px;">
                 <div class="pdf-nav">
                     <button onclick="previousPDFPage()" style="background: #667eea;">◀ Poprzednia</button>
                     <button onclick="nextPDFPage()" style="background: #667eea;">Następna ▶</button>
-                    <button onclick="editCurrentPageText()" style="background: #ff9800;">✏️ Edytuj tekst strony</button>
+                    <button onclick="openEditPanel()" id="editPanelBtn" style="background: #ff9800;">✏️ Edytuj (split view)</button>
                     <button onclick="showOCRStatus()" style="background: #17a2b8;">🤖 OCR Info</button>
                 </div>
                 <div class="pdf-info">
                     Strona <input type="number" id="pdfPageInput" min="1" value="1" onchange="goToPage(this.value)" style="width: 60px; padding: 4px; text-align: center;"> z <span id="pdfPageTotal">0</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- POPUP EDYCJI TEKSTU STRONY (nakładka na PDF Modal) -->
-    <div id="editPagePopup" class="modal" style="z-index: 10000;">
-        <div style="width: 600px; max-width: 90%; background: white; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.4);">
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: linear-gradient(135deg, #ff9800 0%, #e65100 100%); border-radius: 12px 12px 0 0;">
-                <h3 style="margin: 0; color: white; font-size: 16px;">✏️ Edytuj tekst strony <span id="editPageNum">1</span></h3>
-                <span onclick="closeEditPagePopup()" style="cursor: pointer; color: white; font-size: 24px;">&times;</span>
-            </div>
-            <div style="padding: 20px;">
-                <input type="hidden" id="editPageId" value="">
-                <p style="margin-bottom: 10px; color: #666; font-size: 13px;">Popraw błędy OCR i kliknij Zapisz:</p>
-                <textarea id="editPageText" style="width: 100%; height: 350px; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-family: 'Courier New'; font-size: 12px; line-height: 1.5;"></textarea>
-                <div style="display: flex; gap: 10px; margin-top: 15px; justify-content: flex-end;">
-                    <button onclick="closeEditPagePopup()" style="background: #6c757d;">Anuluj</button>
-                    <button onclick="saveEditedPageText()" style="background: #28a745;">💾 Zapisz</button>
                 </div>
             </div>
         </div>
@@ -1079,32 +1097,174 @@
         }
 
         // Load files
+        // FINDER-LIKE NAWIGACJA + THUMBNAILS
+        let currentBinderFilter = null; // null = all, lub nazwa segregatora
+        let allFilesCache = [];
+
         async function loadFiles() {
             try {
                 const response = await fetch('/api/files');
                 const data = await response.json();
 
                 if (data.success && data.data.length > 0) {
-                    let html = '<table><thead><tr><th>Plik</th><th>Segregator</th><th>Strony</th><th>Indeksowane</th><th>Akcja</th></tr></thead><tbody>';
+                    allFilesCache = data.data;
 
-                    data.data.forEach(file => {
+                    // Pobierz unikalne segregatory
+                    const binders = [...new Set(data.data.map(f => f.binder))].filter(b => b && b !== 'Unknown');
+
+                    // Renderuj Finder-like view
+                    let html = '';
+
+                    // Breadcrumb
+                    html += `<div style="margin-bottom: 20px; padding: 10px 15px; background: #f8f9fa; border-radius: 6px; display: flex; gap: 8px; align-items: center;">`;
+                    html += `<span style="cursor: pointer; color: #667eea;" onclick="filterByBinder(null)">🏠 Wszystkie</span>`;
+                    if (currentBinderFilter) {
+                        html += `<span style="color: #999;">›</span>`;
+                        html += `<span style="color: #333; font-weight: bold;">📁 ${currentBinderFilter}</span>`;
+                    }
+                    html += `</div>`;
+
+                    // Jeśli "Wszystkie" - pokaż segregatory jako foldery
+                    if (!currentBinderFilter && binders.length > 0) {
+                        html += `<h3 style="margin-bottom: 15px; color: #666;">📁 Segregatory</h3>`;
+                        html += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; margin-bottom: 30px;">`;
+                        binders.forEach(binder => {
+                            const filesInBinder = data.data.filter(f => f.binder === binder);
+                            html += `
+                                <div onclick="filterByBinder('${binder.replace(/'/g, "\\'")}')" style="cursor: pointer; padding: 15px; background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); border: 1px solid #e0e0e0; border-radius: 8px; text-align: center; transition: all 0.2s;" onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">
+                                    <div style="font-size: 40px; margin-bottom: 8px;">📁</div>
+                                    <div style="font-weight: bold; color: #333; font-size: 13px; word-break: break-word;">${binder}</div>
+                                    <div style="color: #999; font-size: 11px; margin-top: 4px;">${filesInBinder.length} plików</div>
+                                </div>
+                            `;
+                        });
+                        html += `</div>`;
+                    }
+
+                    // Filtruj pliki
+                    const filesToShow = currentBinderFilter
+                        ? data.data.filter(f => f.binder === currentBinderFilter)
+                        : data.data;
+
+                    // Pokaż pliki jako siatkę z thumbnails
+                    html += `<h3 style="margin-bottom: 15px; color: #666;">📄 Pliki (${filesToShow.length})</h3>`;
+                    html += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">`;
+
+                    filesToShow.forEach(file => {
                         const percent = file.pages > 0 ? Math.round((file.pages_indexed / file.pages) * 100) : 0;
-                        html += `<tr>
-                            <td><strong>📄 ${file.filename}</strong></td>
-                            <td>${file.binder}</td>
-                            <td>${file.pages}</td>
-                            <td>${file.pages_indexed}/${file.pages} (${percent}%)</td>
-                            <td><button class="btn-small btn-edit" onclick="openPDFViewer('${file.filename}', '${file.id}')">👁️ Otwórz</button></td>
-                        </tr>`;
+                        const safeFilename = file.filename.replace(/'/g, "\\'");
+                        html += `
+                            <div style="border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; background: white; transition: all 0.2s;" onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 8px 20px rgba(0,0,0,0.12)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">
+                                <div onclick="openPDFViewer('${safeFilename}', '${file.id}')" style="cursor: pointer; background: #f0f0f0; height: 200px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;">
+                                    <canvas id="thumb-${file.id}" style="max-width: 100%; max-height: 100%; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></canvas>
+                                    <div id="thumb-loading-${file.id}" style="position: absolute; color: #999; font-size: 12px;">⏳ Ładuję...</div>
+                                </div>
+                                <div style="padding: 10px;">
+                                    <div style="font-weight: bold; color: #333; font-size: 13px; word-break: break-word; margin-bottom: 4px;" title="${file.filename}">${file.filename.length > 25 ? file.filename.substring(0, 22) + '...' : file.filename}</div>
+                                    <div style="color: #999; font-size: 11px; margin-bottom: 8px;">📁 ${file.binder} | ${file.pages} stron (${percent}%)</div>
+                                    <div style="display: flex; gap: 4px;">
+                                        <button onclick="openPDFViewer('${safeFilename}', '${file.id}')" style="flex: 1; padding: 4px 6px; font-size: 11px;" title="Podgląd">👁️</button>
+                                        <button onclick="downloadFile('${file.id}')" style="flex: 1; padding: 4px 6px; font-size: 11px; background: #28a745;" title="Pobierz">⬇️</button>
+                                        <button onclick="quickEditFile('${file.id}', '${safeFilename}')" style="flex: 1; padding: 4px 6px; font-size: 11px; background: #ff9800;" title="Edytuj">✏️</button>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
                     });
+                    html += `</div>`;
 
-                    html += '</tbody></table>';
                     document.getElementById('filesContainer').innerHTML = html;
+
+                    // Generate thumbnails async
+                    filesToShow.forEach(file => generateThumbnail(file.id));
                 } else {
                     document.getElementById('filesContainer').innerHTML = '<div class="empty-state"><div class="empty-state-icon">📁</div><p>Brak plików</p></div>';
                 }
             } catch (error) {
                 showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        function filterByBinder(binder) {
+            currentBinderFilter = binder;
+            loadFiles();
+        }
+
+        function downloadFile(fileId) {
+            window.open(`/api/file/${fileId}`, '_blank');
+        }
+
+        async function quickEditFile(fileId, filename) {
+            // Otwórz PDF i automatycznie aktywuj split-view edit
+            await openPDFViewer(filename, fileId);
+            setTimeout(() => openEditPanel(), 1000);
+        }
+
+        async function generateSearchThumbnail(fileId, canvasId, pageNum) {
+            try {
+                const canvas = document.getElementById(canvasId);
+                const loading = document.getElementById(`${canvasId}-loading`);
+                if (!canvas) return;
+
+                const response = await fetch(`/api/file/${fileId}`);
+                if (!response.ok) throw new Error('Cannot load PDF');
+
+                const arrayBuffer = await response.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                const page = await pdf.getPage(pageNum || 1);
+
+                const targetWidth = 90;
+                const pageWidth = page.getViewport({ scale: 1 }).width;
+                const scale = targetWidth / pageWidth;
+                const viewport = page.getViewport({ scale });
+
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                await page.render({
+                    canvasContext: context,
+                    viewport: viewport
+                }).promise;
+
+                if (loading) loading.style.display = 'none';
+            } catch (error) {
+                const loading = document.getElementById(`${canvasId}-loading`);
+                if (loading) loading.textContent = '📄';
+            }
+        }
+
+        async function generateThumbnail(fileId) {
+            try {
+                const canvas = document.getElementById(`thumb-${fileId}`);
+                const loading = document.getElementById(`thumb-loading-${fileId}`);
+                if (!canvas) return;
+
+                const response = await fetch(`/api/file/${fileId}`);
+                if (!response.ok) throw new Error('Cannot load PDF');
+
+                const arrayBuffer = await response.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                const page = await pdf.getPage(1);
+
+                const targetWidth = 180;
+                const pageWidth = page.getViewport({ scale: 1 }).width;
+                const scale = targetWidth / pageWidth;
+                const viewport = page.getViewport({ scale });
+
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                await page.render({
+                    canvasContext: context,
+                    viewport: viewport
+                }).promise;
+
+                if (loading) loading.style.display = 'none';
+            } catch (error) {
+                const loading = document.getElementById(`thumb-loading-${fileId}`);
+                if (loading) loading.textContent = '📄 PDF';
             }
         }
 
@@ -1161,20 +1321,36 @@
                     if (data.data.length > 0) {
                         let html = `<div style="margin-bottom: 20px; padding: 15px; background: #e3f2fd; border-radius: 6px;">
                                     <strong>Znaleziono: ${data.count}</strong> wyników dla "${query}"
-                                  </div>
-                                  <table><thead><tr><th>Plik</th><th>Segregator</th><th>Strona</th><th>Kontekst</th></tr></thead><tbody>`;
+                                  </div>`;
 
-                        data.data.forEach(result => {
-                            const context = result.context.length > 100 ? result.context.substring(0, 100) + '...' : result.context;
-                            html += `<tr>
-                                <td><strong>${result.filename}</strong></td>
-                                <td>${result.binder}</td>
-                                <td><strong>${result.page}</strong></td>
-                                <td><em>"${context}"</em></td>
-                            </tr>`;
+                        // Highlight query function
+                        const highlight = (text, q) => {
+                            const regex = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+                            return text.replace(regex, '<mark style="background: #fff3cd; padding: 1px 3px;">$1</mark>');
+                        };
+
+                        data.data.forEach((result, idx) => {
+                            const context = result.context.length > 200 ? result.context.substring(0, 200) + '...' : result.context;
+                            const thumbId = `search-thumb-${idx}-${result.file_id}`;
+                            const safeFilename = result.filename.replace(/'/g, "\\'");
+
+                            html += `
+                            <div style="display: flex; gap: 15px; padding: 12px; background: white; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 10px; transition: all 0.2s; cursor: pointer;" onclick="openPDFViewer('${safeFilename}', '${result.file_id}'); setTimeout(() => goToPage(${result.page}), 1500);" onmouseover="this.style.transform='translateX(4px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">
+                                <div style="width: 100px; height: 130px; background: #f0f0f0; border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; position: relative; overflow: hidden;">
+                                    <canvas id="${thumbId}" style="max-width: 100%; max-height: 100%;"></canvas>
+                                    <span id="${thumbId}-loading" style="position: absolute; color: #999; font-size: 11px;">📄</span>
+                                </div>
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="font-weight: bold; color: #333; margin-bottom: 4px;">📄 ${result.filename}</div>
+                                    <div style="color: #666; font-size: 12px; margin-bottom: 6px;">📁 ${result.binder} | Strona <strong>${result.page}</strong></div>
+                                    <div style="color: #555; font-size: 13px; font-style: italic; line-height: 1.5;">"${highlight(context, query)}"</div>
+                                </div>
+                            </div>`;
+
+                            // Generate thumbnail async
+                            setTimeout(() => generateSearchThumbnail(result.file_id, thumbId, result.page), 100 + idx * 50);
                         });
 
-                        html += '</tbody></table>';
                         document.getElementById('searchResults').innerHTML = html;
                     } else {
                         document.getElementById('searchResults').innerHTML = '<div class="empty-state"><p>Brak wyników dla "<strong>' + query + '</strong>"</p></div>';
@@ -1440,15 +1616,17 @@
             currentFileId = null;
         }
 
-        // EDYCJA TEKSTU STRONY - POPUP w popupie
-        async function editCurrentPageText() {
+        // SPLIT-VIEW EDIT MODE
+        let editPanelOpen = false;
+        let rawOCRVisible = false;
+
+        async function openEditPanel() {
             if (!pdfDoc || !currentFileId) {
                 showAlert('Otwórz PDF aby edytować', 'error');
                 return;
             }
 
             try {
-                // Pobierz page_id z bazy
                 const response = await fetch(`/api/page-by-file-page/${currentFileId}/${currentPage}`);
                 const data = await response.json();
 
@@ -1457,13 +1635,52 @@
                     return;
                 }
 
-                // Otwórz popup edycji obok PDF
                 document.getElementById('editPageId').value = data.page_id;
-                document.getElementById('editPageNum').textContent = currentPage;
+                document.getElementById('editPageNumDisplay').textContent = currentPage;
                 document.getElementById('editPageText').value = data.text || '';
-                document.getElementById('editPagePopup').classList.add('active');
+                document.getElementById('rawOCRContent').textContent = data.text || '(brak tekstu OCR)';
+
+                // SPLIT VIEW: PDF column shrinks, edit panel expands
+                document.getElementById('pdfViewerColumn').style.flex = '1';
+                document.getElementById('editPanel').style.flex = '1';
+                document.getElementById('editPanelBtn').textContent = '✕ Zamknij edycję';
+                document.getElementById('editPanelBtn').style.background = '#6c757d';
+                editPanelOpen = true;
+
+                // Re-render PDF do new column size (smaller)
+                setTimeout(() => {
+                    if (autoFit) renderPDFPage(currentPage);
+                }, 350);
             } catch (error) {
                 showAlert(`Błąd: ${error.message}`, 'error');
+            }
+        }
+
+        function closeEditPanel() {
+            document.getElementById('pdfViewerColumn').style.flex = '1';
+            document.getElementById('editPanel').style.flex = '0';
+            document.getElementById('editPanelBtn').textContent = '✏️ Edytuj (split view)';
+            document.getElementById('editPanelBtn').style.background = '#ff9800';
+            editPanelOpen = false;
+
+            // Re-render PDF do full size
+            setTimeout(() => {
+                if (autoFit) renderPDFPage(currentPage);
+            }, 350);
+        }
+
+        function toggleOCRView() {
+            const view = document.getElementById('rawOCRView');
+            const btn = document.getElementById('ocrViewToggle');
+            rawOCRVisible = !rawOCRVisible;
+            if (rawOCRVisible) {
+                view.style.display = 'block';
+                btn.textContent = '✓ Raw OCR';
+                btn.style.background = 'rgba(40, 167, 69, 0.5)';
+            } else {
+                view.style.display = 'none';
+                btn.textContent = '📄 Raw OCR';
+                btn.style.background = 'rgba(255,255,255,0.2)';
             }
         }
 
@@ -1481,17 +1698,14 @@
 
                 if (data.success) {
                     showAlert('✅ Tekst strony zapisany', 'success');
-                    closeEditPagePopup();
+                    // Update raw OCR view with new text
+                    document.getElementById('rawOCRContent').textContent = text;
                 } else {
                     showAlert(`❌ ${data.error}`, 'error');
                 }
             } catch (error) {
                 showAlert(`Błąd: ${error.message}`, 'error');
             }
-        }
-
-        function closeEditPagePopup() {
-            document.getElementById('editPagePopup').classList.remove('active');
         }
 
         async function showOCRStatus() {
@@ -1506,6 +1720,15 @@
             } catch (error) {
                 showAlert(`Błąd: ${error.message}`, 'error');
             }
+        }
+
+        function downloadCurrentFile() {
+            if (!currentFileId) {
+                showAlert('Otwórz plik aby pobrać', 'error');
+                return;
+            }
+            // Trigger download by opening the file endpoint
+            window.open(`/api/file/${currentFileId}`, '_blank');
         }
 
         function closeEditTextModal() {
