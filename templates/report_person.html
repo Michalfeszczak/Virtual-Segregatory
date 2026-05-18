@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Profil: {{ person.entity_value }}</title>
+    <style>
+        @page { size: A4; margin: 18mm; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: #1e293b;
+            line-height: 1.5;
+            font-size: 13px;
+            background: white;
+            padding: 24px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .header {
+            border-bottom: 3px solid #6366f1;
+            padding-bottom: 14px;
+            margin-bottom: 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+        .header h1 { font-size: 26px; font-weight: 700; color: #0f172a; }
+        .header .meta { font-size: 12px; color: #64748b; text-align: right; }
+        .badge {
+            display: inline-block;
+            background: #eef2ff;
+            color: #4f46e5;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-right: 6px;
+            margin-bottom: 4px;
+        }
+        section { margin-bottom: 20px; page-break-inside: avoid; }
+        section h2 {
+            font-size: 14px;
+            text-transform: uppercase;
+            color: #475569;
+            letter-spacing: 0.08em;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 6px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+        .stat {
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        }
+        .stat-val { font-size: 20px; font-weight: 700; color: #6366f1; }
+        .stat-lbl { font-size: 11px; color: #64748b; margin-top: 2px; }
+
+        .attr-row {
+            display: flex;
+            padding: 6px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .attr-row:last-child { border-bottom: none; }
+        .attr-label {
+            font-weight: 600;
+            color: #475569;
+            min-width: 140px;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.05em;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        th {
+            background: #f1f5f9;
+            text-align: left;
+            padding: 8px 10px;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #475569;
+            letter-spacing: 0.05em;
+            border-bottom: 2px solid #cbd5e1;
+        }
+        td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        tr:last-child td { border-bottom: none; }
+
+        .timeline-item {
+            display: flex;
+            gap: 14px;
+            padding: 10px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .timeline-date {
+            min-width: 80px;
+            font-weight: 600;
+            color: #6366f1;
+            font-size: 12px;
+        }
+        .timeline-content { flex: 1; }
+        .timeline-title {
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 2px;
+        }
+        .timeline-meta {
+            font-size: 11px;
+            color: #64748b;
+        }
+        .timeline-summary {
+            font-size: 11px;
+            color: #475569;
+            margin-top: 4px;
+            font-style: italic;
+        }
+
+        .print-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #6366f1;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            font-weight: 600;
+            box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3);
+        }
+        .print-btn:hover { background: #4f46e5; }
+        @media print {
+            .print-btn { display: none; }
+            body { padding: 0; }
+        }
+        .footer {
+            margin-top: 28px;
+            padding-top: 14px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 11px;
+            color: #94a3b8;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <button class="print-btn" onclick="window.print()">🖨 Drukuj / Zapisz jako PDF</button>
+
+    <div class="header">
+        <div>
+            <h1>{{ person.entity_value }}</h1>
+            <div style="font-size: 12px; color: #64748b; margin-top: 4px;">Profil osoby · Raport</div>
+        </div>
+        <div class="meta">
+            Wygenerowano: {{ generated_at }}<br>
+            Virtual Segregatory
+        </div>
+    </div>
+
+    <section>
+        <h2>Podsumowanie</h2>
+        <div class="stats-grid">
+            <div class="stat">
+                <div class="stat-val">{{ files|length }}</div>
+                <div class="stat-lbl">Dokumenty</div>
+            </div>
+            <div class="stat">
+                <div class="stat-val">{{ files|sum(attribute='occurrences') }}</div>
+                <div class="stat-lbl">Wystąpienia</div>
+            </div>
+            <div class="stat">
+                <div class="stat-val">{{ kws|length }}</div>
+                <div class="stat-lbl">KW</div>
+            </div>
+            <div class="stat">
+                <div class="stat-val">{{ all_names|length }}</div>
+                <div class="stat-lbl">Formy nazwy</div>
+            </div>
+        </div>
+    </section>
+
+    {% if all_names|length > 1 %}
+    <section>
+        <h2>Wszystkie formy nazwy</h2>
+        <div>
+            {% for n in all_names %}
+                <span class="badge">{{ n }}</span>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if attrs %}
+    <section>
+        <h2>Dane osobowe</h2>
+        {% for a in attrs %}
+            <div class="attr-row">
+                <div class="attr-label">{{ a.attr_type }}</div>
+                <div>{{ a.attr_value }}</div>
+            </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if kws %}
+    <section>
+        <h2>Księgi Wieczyste</h2>
+        <table>
+            <thead><tr><th>Numer KW</th><th>Okręg</th></tr></thead>
+            <tbody>
+            {% for kw in kws %}
+                <tr><td>{{ kw.kw_full }}</td><td>{{ kw.kw_district or '—' }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    {% endif %}
+
+    {% if timeline %}
+    <section>
+        <h2>Chronologia dokumentów</h2>
+        {% for t in timeline %}
+            <div class="timeline-item">
+                <div class="timeline-date">{{ t.date }}</div>
+                <div class="timeline-content">
+                    <div class="timeline-title">{{ t.filename }}</div>
+                    <div class="timeline-meta">
+                        {{ t.binder or 'Default' }} · {{ t.pages }} stron · {{ t.occurrences }}× wystąpień
+                        {% if t.doc_type %} · <span class="badge" style="margin-bottom: 0;">{{ t.doc_type }}</span>{% endif %}
+                    </div>
+                    {% if t.summary %}
+                        <div class="timeline-summary">{{ t.summary }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    <div class="footer">
+        Raport wygenerowany przez Virtual Segregatory · {{ generated_at }}
+    </div>
+</body>
+</html>

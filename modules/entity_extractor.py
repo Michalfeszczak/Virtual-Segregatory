@@ -422,46 +422,126 @@ class EntityExtractor:
         return None
 
     def extract_persons(self, text):
-        """Wyłapuj osoby z imienia + nazwiska z walidacją + confidence"""
+        """
+        Wyłapuj osoby:
+        - Pojedyncze imię + nazwisko: "Jan Kowalski"
+        - Dwa imiona + nazwisko: "Sławomir Krzysztof Feszczak"
+        - Trzy imiona + nazwisko: "Anna Maria Joanna Nowak"
+        Z normalizacją i confidence
+        """
         persons = []
         all_names = self.POLISH_NAMES_MALE | self.POLISH_NAMES_FEMALE
 
-        # Wzorzec: Imię + Nazwisko (z dużej litery)
+        # Wzorzec: 1-3 imion + nazwisko (z opcjonalnym podwójnym nazwiskiem)
+        # Łapie compound names jak "Sławomir Krzysztof Feszczak"
         pattern = re.compile(
-            r'\b([A-ZŁŻŚĆŃÓĄĘ][a-zżółćńąęś]+)\s+([A-ZŁŻŚĆŃÓĄĘ][a-zżółćńąęś]+(?:-[A-ZŁŻŚĆŃÓĄĘ][a-zżółćńąęś]+)?)\b'
+            r'\b([A-ZŁŻŚĆŃÓĄĘ][a-zżółćńąęś]+)'  # Imię 1
+            r'(?:\s+([A-ZŁŻŚĆŃÓĄĘ][a-zżółćńąęś]+))?'  # Opcjonalnie imię 2
+            r'(?:\s+([A-ZŁŻŚĆŃÓĄĘ][a-zżółćńąęś]+))?'  # Opcjonalnie imię 3
+            r'\s+([A-ZŁŻŚĆŃÓĄĘ][a-zżółćńąęś]+(?:-[A-ZŁŻŚĆŃÓĄĘ][a-zżółćńąęś]+)?)\b'  # Nazwisko (z opcjonalnym myślnikiem)
         )
 
-        for match in pattern.finditer(text):
-            first_name = match.group(1)
-            last_name = match.group(2)
+        seen_positions = set()
 
-            # Sprawdz czy to imie (lub forma odmienna)
+        for match in pattern.finditer(text):
+            # Pomijaj duplikaty (re może łapać zachodzące matche)
+            if match.start() in seen_positions:
+                continue
+
+            tokens = [match.group(i) for i in range(1, 5)]
+            # tokens = [imię1, imię2 lub None, imię3 lub None, nazwisko]
+            first_name = tokens[0]
+            potential_middle_names = [t for t in tokens[1:-1] if t]
+            last_name_candidate = tokens[-1]
+
+            # Sprawdz czy pierwsze słowo to imię
             normalized_first = first_name if first_name in all_names else self._normalize_first_name(first_name)
             if not normalized_first:
                 continue
 
+            # Sprawdź middle names - czy są imionami (jeśli nie, to ostatnie middle name to nazwisko)
+            valid_middle_names = []
+            actual_last_name = last_name_candidate
+
+            for mn in potential_middle_names:
+                norm = mn if mn in all_names else self._normalize_first_name(mn)
+                if norm:
+                    valid_middle_names.append(mn)
+                else:
+                    # To słowo nie jest imieniem - może być pierwszą częścią nazwiska
+                    # ALE: jeśli już mamy imię z dużej, traktujemy następne jako nazwisko
+                    # Przykład: "Jan Kowalski Smith" - "Kowalski Smith" prawdopodobnie nie jest imieniem+nazwiskiem
+                    break  # Zatrzymaj parsowanie middle names
+
             # Confidence score
             confidence = 0.5
             if first_name in all_names:
-                confidence += 0.25
-            if self._is_surname_form(last_name):
-                confidence += 0.25
-            if last_name in self.POLISH_SURNAMES:
-                confidence = min(confidence + 0.1, 1.0)
+                confidence += 0.20
+            if valid_middle_names:
+                confidence += 0.10  # Bonus za zwalidowane drugie imię
+            if self._is_surname_form(actual_last_name):
+                confidence += 0.20
+            if actual_last_name in self.POLISH_SURNAMES:
+                confidence = min(confidence + 0.10, 1.0)
 
             gender = 'M' if normalized_first in self.POLISH_NAMES_MALE else 'F'
+
+            # Pełna nazwa z wszystkimi imionami
+            full_parts = [first_name] + valid_middle_names + [actual_last_name]
+            full_name = ' '.join(full_parts)
+
+            # Base name = pierwsze imię + nazwisko (do łączenia osób)
+            # "Sławomir Krzysztof Feszczak" -> base_name = "Sławomir Feszczak"
+            base_name = f"{first_name} {actual_last_name}"
+
+            # Normalizowana wersja (do łączenia odmienionych form):
+            # "Janowi Kowalskiemu" → "Jan Kowalski"
+            normalized_last = self._normalize_surname(actual_last_name)
+            normalized_full = f"{normalized_first} {normalized_last}"
 
             persons.append({
                 'first_name': first_name,
                 'normalized_first_name': normalized_first,
-                'last_name': last_name,
+                'middle_names': valid_middle_names,
+                'middle_names_str': ' '.join(valid_middle_names) if valid_middle_names else '',
+                'last_name': actual_last_name,
+                'normalized_last_name': normalized_last,
                 'gender': gender,
-                'full_name': f"{first_name} {last_name}",
+                'full_name': full_name,
+                'base_name': base_name,  # imię + nazwisko (do łączenia)
+                'normalized_full_name': normalized_full,  # do łączenia odmienionych form
                 'confidence': round(confidence, 2),
                 'position': match.start()
             })
 
+            seen_positions.add(match.start())
+
         return self._deduplicate(persons, 'full_name')
+
+    def _normalize_surname(self, name):
+        """Zwróć bazową formę nazwiska (np. Kowalskiemu -> Kowalski)"""
+        if not name:
+            return name
+
+        # Mapowanie końcówek deklinacji
+        endings = [
+            ('skiego', 'ski'), ('skiemu', 'ski'), ('skim', 'ski'),
+            ('skiej', 'ska'), ('ską', 'ska'),
+            ('ckiego', 'cki'), ('ckiemu', 'cki'), ('ckim', 'cki'),
+            ('ckiej', 'cka'), ('cką', 'cka'),
+            ('owi', ''),  # Janowi -> Jan? - ostrożnie
+            ('em', ''),
+        ]
+
+        for ending, replacement in endings:
+            if name.endswith(ending):
+                base = name[:-len(ending)] + replacement
+                # Zwróć tylko jeśli base ma sens (>2 znaki)
+                if len(base) > 2:
+                    return base
+
+        # Domyślnie zostaw oryginalny
+        return name
 
     def extract_companies(self, text):
         """Wyłapuj nazwy firm"""

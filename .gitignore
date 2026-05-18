@@ -1,4 +1,42 @@
-# Python
+# ============================================
+# Virtual Segregatory - .gitignore
+# Chroni dokumenty użytkownika i dane wrażliwe przed wyciekiem do gita
+# ============================================
+
+# === DANE UŻYTKOWNIKA (NIGDY do gita!) ===
+# Foldery z dokumentami PDF
+/imports/
+/exports/
+/backups/
+/data/
+/cache/
+/tmp/
+/logs/
+
+# Bazy danych SQLite (wszystkie warianty)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Wszystkie pliki PDF (na wypadek wszelki - mogą zawierać dane wrażliwe)
+*.pdf
+
+# Logi i temp
+*.log
+*.tmp
+*.temp
+*.bak
+
+# Pliki Excel/CSV/raportów (mogą zawierać dane wrażliwe)
+*.xlsx
+*.xls
+*.csv
+*.ods
+
+# === PYTHON ===
 __pycache__/
 *.py[cod]
 *$py.class
@@ -6,6 +44,7 @@ __pycache__/
 .Python
 env/
 venv/
+.venv/
 ENV/
 build/
 develop-eggs/
@@ -23,26 +62,57 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Virtual Segregatory specific
-virtual_segregatory.db
-*.db
-*.log
-/imports/
-/exports/
-/backups/
+# Test coverage
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
 
-# IDE
+# === IDE ===
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+*.sublime-*
 .DS_Store
-.claude/
+Thumbs.db
+desktop.ini
 
-# Environment
+# === AI / Claude ===
+.claude/
+.claude.json
+.aider*
+
+# === ŚRODOWISKO / SEKRETY ===
 .env
 .env.local
+.env.production
+.env.development
 *.pem
 *.key
+*.crt
+secrets.json
+credentials.json
+config.local.py
+
+# === OLLAMA / MODELE AI ===
+models/
+*.gguf
+*.bin
+
+# === BACKUP / DUPLIKATY ===
+*.backup
+*.old
+* 2.*
+* copy.*
+* (1).*
+* (2).*
+* (3).*

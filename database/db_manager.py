@@ -2,11 +2,13 @@ import sqlite3
 from pathlib import Path
 import json
 from datetime import datetime
+from contextlib import contextmanager
 
 class DatabaseManager:
     def __init__(self, db_path):
         self.db_path = db_path
         self.connection = None
+        self._transaction_depth = 0
 
     def connect(self):
         """Połączenie z bazą"""
@@ -31,12 +33,45 @@ class DatabaseManager:
                 cursor.execute(query, params)
             else:
                 cursor.execute(query)
-            self.connection.commit()
+            if self._transaction_depth == 0:
+                self.connection.commit()
             return cursor
         except Exception as e:
             print(f"❌ Błąd SQL: {e}")
-            self.connection.rollback()
-            return None
+            if self._transaction_depth == 0:
+                self.connection.rollback()
+                return None
+            raise
+
+    def begin(self):
+        """Rozpocznij transakcję zbiorczą."""
+        if self._transaction_depth == 0:
+            self.connection.execute("BEGIN")
+        self._transaction_depth += 1
+
+    def commit(self):
+        """Zatwierdź transakcję zbiorczą."""
+        if self._transaction_depth == 0:
+            return
+        self._transaction_depth -= 1
+        if self._transaction_depth == 0:
+            self.connection.commit()
+
+    def rollback(self):
+        """Wycofaj aktywną transakcję zbiorczą."""
+        self._transaction_depth = 0
+        self.connection.rollback()
+
+    @contextmanager
+    def transaction(self):
+        """Context manager dla jednej większej transakcji."""
+        self.begin()
+        try:
+            yield self
+            self.commit()
+        except Exception:
+            self.rollback()
+            raise
 
     def fetch_one(self, query, params=None):
         """Pobierz jeden wiersz"""
@@ -89,6 +124,7 @@ class DatabaseManager:
             kw_checksum TEXT,
             property_address TEXT,
             owner_manual TEXT,
+            geoportal_url TEXT,
             notes TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -189,10 +225,12 @@ class DatabaseManager:
             lr.kw_full,
             lr.kw_district,
             lr.kw_number,
+            lr.kw_checksum,
             COUNT(DISTINCT lro.file_id) as files_count,
             COUNT(DISTINCT lro.page_id) as pages_count,
             lr.property_address,
-            lr.owner_manual
+            lr.owner_manual,
+            lr.geoportal_url
         FROM land_registers lr
         LEFT JOIN land_register_occurrences lro ON lr.id = lro.kw_id
         GROUP BY lr.id;
@@ -230,11 +268,8 @@ class DatabaseManager:
         VALUES (?, ?, ?, ?)
         """
         page_hash = str(hash(text_content))
-        self.execute(query, (file_id, page_number, text_content, page_hash))
-        return self.fetch_one(
-            "SELECT id FROM pages WHERE file_id = ? AND page_number = ?",
-            (file_id, page_number)
-        )['id']
+        cursor = self.execute(query, (file_id, page_number, text_content, page_hash))
+        return cursor.lastrowid if cursor else None
 
     def add_land_register(self, kw_full, kw_district, kw_number, kw_checksum, address=""):
         """Dodaj księgę wieczystą"""

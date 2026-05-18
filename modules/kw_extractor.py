@@ -4,6 +4,8 @@ from config import KW_PATTERN
 class KWValidator:
     """Walidator dla Ksiąg Wieczystych"""
 
+    DISTRICT_PATTERN = re.compile(r'^[A-Z]{2}\d[A-Z]$')
+
     @staticmethod
     def validate_checksum(kw_district, kw_number, kw_checksum):
         """Walidacja sumy kontrolnej KW - uproszczona"""
@@ -19,9 +21,11 @@ class KWValidator:
         # Usuń spacje i myślniki
         kw_full = kw_full.replace(' ', '').replace('-', '')
         # Dodaj prawidłowy format
-        match = re.match(r'([A-Z]{2}\d{1,2}[A-Z]{1,2})(\d{8})(\d)', kw_full)
+        match = re.match(r'([A-Z]{2}[0-9I1L][A-Z0])(\d{8})(\d)', kw_full)
         if match:
-            return f"{match.group(1)}/{match.group(2)}/{match.group(3)}"
+            district = KWExtractor.normalize_district_code(match.group(1))
+            if district:
+                return f"{district}/{match.group(2)}/{match.group(3)}"
         return kw_full
 
 
@@ -32,10 +36,28 @@ class KWExtractor:
         self.validator = KWValidator()
         # Wzorce z obsługą błędów OCR (I→1, l→1, O→0, S→5)
         self.kw_patterns = [
-            r'([A-Z]{2}\d{1,2}[A-Z]{1,2})[/\s\-]?(\d{8})[/\s\-]?(\d)',  # Standard
-            r'([A-Z]{2}[I1l]{1,2}[A-Z]{1,2})[/\s\-]?(\d{8})[/\s\-]?(\d)',  # OCR: I→1
-            r'([A-Z]{2}\d{1,2}[A-Z][O0])[/\s\-]?(\d{8})[/\s\-]?(\d)',  # OCR: O→0
+            r'([A-Z]{2}\d[A-Z])[/\s\-]?(\d{8})[/\s\-]?(\d)',      # Standard: np. SZ1T/00012345/6
+            r'([A-Z]{2}[I1L][A-Z])[/\s\-]?(\d{8})[/\s\-]?(\d)',   # OCR: cyfra "1" rozpoznana jako I/l
+            r'([A-Z]{2}\d[O0])[/\s\-]?(\d{8})[/\s\-]?(\d)',       # OCR: litera O rozpoznana jako 0
         ]
+
+    @staticmethod
+    def normalize_district_code(raw_code):
+        """Normalizuj kod wydziału KW do prawidłowego formatu 2 litery + cyfra + litera."""
+        code = (raw_code or '').upper().strip()
+        if len(code) != 4:
+            return None
+
+        chars = list(code)
+        if chars[2] in ('I', 'L'):
+            chars[2] = '1'
+        if chars[3] == '0':
+            chars[3] = 'O'
+
+        normalized = ''.join(chars)
+        if KWValidator.DISTRICT_PATTERN.match(normalized):
+            return normalized
+        return None
 
     def extract_from_text(self, text, page_number=1):
         """Ekstrahuj KW z tekstu"""
@@ -46,9 +68,12 @@ class KWExtractor:
             matches = re.finditer(pattern, text_upper)
             for match in matches:
                 try:
-                    kw_district = match.group(1)
+                    kw_district = self.normalize_district_code(match.group(1))
                     kw_number = match.group(2)
                     kw_checksum = match.group(3)
+
+                    if not kw_district:
+                        continue
 
                     kw_full = f"{kw_district}/{kw_number}/{kw_checksum}"
 
